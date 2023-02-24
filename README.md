@@ -11,7 +11,9 @@ python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-ur
 
 ### install from github
 git clone https://github.com/ssarkizova/hlathenav2
+
 cd hlathenav2
+
 pip install .
 
 
