@@ -1,7 +1,11 @@
-hlathenav2
+hlathenav2: A python package for HLA binding prediction and peptide analysis
 ==============================
 
-Immunopeptidomics analyses
+----------------------------
+##Requires scipy, logomaker, umap-learn
+
+#python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple HLAthenaV2==0.1.0
+
 
 Project Organization
 ------------
