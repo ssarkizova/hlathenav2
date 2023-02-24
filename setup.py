@@ -10,7 +10,8 @@ setup(
     author='Sisi Sarkizova, Cleo Forman, Mehdi Borji',
     author_email='mehdi.borji.86@gmail.com',
     license='MIT',
-    packages=find_packages(),
+    packages=['hlathena'],
+    #package_dir={'hlathena':'src'},
     install_requires=[
         'logomaker>=0.8',
         'numpy>=1.20.0',
