@@ -13,6 +13,7 @@ setup(
     packages=['hlathena'],
     #package_dir={'hlathena':'src'},
     install_requires=[
+        'importlib-resources>=5.12.0',
         'logomaker>=0.8',
         'numpy>=1.20.0',
         'pandas>=1.3.5',
