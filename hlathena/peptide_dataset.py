@@ -30,19 +30,33 @@ class PeptideDataset(Dataset):
 
     """
 
-    def __init__(self, pep_df: pd.DataFrame, label_col: str=None, \
+    def __init__(self, \
+                 pep_df: pd.DataFrame, \
+                 peplen: int=None, \
+                 allele: str=None, \
+                 label_col: str=None, \
                  aa_featurefiles: List[os.PathLike]=None, \
                  feat_cols: List[str]=None) -> None:
         """ Inits a peptide dataset which featurizes the hit and decoy peptides.
 
         Args:
             pep_df (pd.DataFrame): list of peptides
-            label_col (str): name of column containing target labels (default is None)
-            aa_featurefiles (List[os.PathLike]): list of feature matrix files
-            feat_cols (List[str]): list of peptide feature columns
+            peplen (int, optional): length of peptides to include in dataset
+            allele (str, optional): name of allele in `allele` column of pep_df 
+                                        (`allele` column only required if this parameter is specified)
+            label_col (str, optional): name of column containing target labels (default is None)
+            aa_featurefiles (List[os.PathLike], optional): list of feature matrix files (default one-hot encoding)
+            feat_cols (List[str], optional): list of peptide feature columns
         """
         super().__init__()
-
+        
+        if peplen != None:
+            pep_df['length'] = [len(pep) for pep in pep_df['seq']]
+            pep_df = pep_df[pep_df['length']==peplen].copy()
+        
+        if allele != None:
+            pep_df = pep_df[pep_df['allele']==allele].copy()
+        
         self.peptide_feats_df = pep_df.copy()
         self.peptide_feats_df.index = self.peptide_feats_df['seq']
         self.peptide_feats_df.drop(columns="seq", inplace=True)
@@ -133,7 +147,7 @@ class PeptideDataset(Dataset):
         Returns:
             List[Tensor]: featurized peptide tensors
         """
-        encoding_map: pd.DataFrame = self.get_encoded_peptide_map()
+        encoding_map: pd.DataFrame = self.get_aa_encoded_peptide_map()
         encoded = []
 
         # TODO: is there a simpler way of creating tensors.. pytorch lightning?
@@ -158,7 +172,7 @@ class PeptideDataset(Dataset):
         return encoded
 
 
-    def get_encoded_peptide_map(self) -> pd.DataFrame:
+    def get_aa_encoded_peptide_map(self) -> pd.DataFrame:
         """
         Returns:
             pd.DataFrame: Amino acid featurization of peptides in the class

@@ -6,19 +6,25 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy import stats
 import umap
-from hlathena import peptide_projection_lib
 from hlathena.definitions import AMINO_ACIDS
 import logomaker
 
 
 def plot_length(peptides: List[str]) -> None:
-    """
-    Plots the distribution of peptide lengths.
+    """Plot the distribution of peptide lengths.
 
-    :param tsv_file: The path to the input TSV file.
-    :type tsv_file: str
-    :return: None
+    Args:
+        peptides (List[str]): A list of peptide sequences.
+
+    Returns:
+        None
+        
+    Raises:
+        IndexError: No peptides provided for plotting
     """
+    if not len(peptides):
+        raise IndexError("No peptides provided for plotting")
+        
     ncol_plot = 1
     fig, axs = plt.subplots(1, ncol_plot, sharex=False, sharey=False, figsize=(4.5*ncol_plot, 4));
     pep_df = pd.DataFrame(peptides, columns = ['seq'])
@@ -30,15 +36,24 @@ def plot_length(peptides: List[str]) -> None:
 
     
 def plot_logo(peptides: List[str], length: int = None) -> None:
-    """
-    Plots the sequence logo for a given allele and peptide length.
+    """Plot the sequence logo for a given allele and peptide length.
 
-    :param peptides: List of peptide sequences
-    :type peptides: List[str]
-    :param length: The length of peptides to plot.
-    :type length: int, optional
-    :return: None
+    Args:
+        peptides (List[str]):   A list of peptide sequences.
+        length (int, optional): The length of peptides to plot. If not provided, the function 
+                                will plot all lengths found in `peptides`
+
+    Returns:
+        None
+        
+    Raises:
+        IndexError: If `peptides` is empty.
+
     """
+    
+    if not len(peptides):
+        raise IndexError("No peptides for plotting")
+
     pep_lengths = list(set([len(pep) for pep in peptides]))
     
     if not length is None or len(pep_lengths) < 2:
@@ -75,40 +90,51 @@ def plot_logo(peptides: List[str], length: int = None) -> None:
 
 
 
-def plot_umap(tsv_file: str, allele: str, length: int) -> None:
-    """
-    Plots the UMAP embedding for a given allele and peptide length.
+def plot_umap(feature_matrix: pd.DataFrame, title: str=None, save_path: str=None) -> None:
+    """Plot the UMAP embedding for a given allele and peptide length.
 
-    :param tsv_file: The path to the input TSV file.
-    :type tsv_file: str
-    :param allele: The HLA allele to plot.
-    :type allele: str
-    :param length: The length of peptides to plot.
-    :type length: int
-    :return: None
+    Args:
+        tsv_file (str): The path to the input TSV file.
+        allele (str): The HLA allele to plot.
+        length (int): The length of peptides to plot.
+
+    Returns:
+        None
+
     """
-    out_dir = 'out/'
-    hits_KFwEPCA =  peptide_projection_lib.encode_KF_wE_PCA(tsv_file, allele, length, # TODO: THIS SHOULD BE SEPARATE AND PROVIDED TO THIS FUNCTION
-                                    pep_col='seq', use_precomp_PCA=False)
-    
+
     # UMAP embedding
-    umap_transform = umap.UMAP(n_neighbors=5, min_dist=0.5, random_state=42).fit(hits_KFwEPCA)
+    umap_transform = umap.UMAP(n_neighbors=5, min_dist=0.5, random_state=42).fit(feature_matrix)
     # the hits, i.e. identical to above but here as an example how to embed new data
-    umap_embedding_hits = umap_transform.transform(hits_KFwEPCA) 
+    umap_embedding_hits = umap_transform.transform(feature_matrix) 
 
     
     ### UMAP plot
     plt.figure(figsize = (6,6))
     plt.scatter(umap_embedding_hits[:, 0], umap_embedding_hits[:, 1], 
                 s=10, facecolors='none', edgecolors='black', linewidths=0.1, alpha=0.75)
-    plt.title(f'{allele}\n(black:hits)', fontsize=15)
     plt.xlabel('umap1', fontsize=15)
     plt.ylabel('umap2', fontsize=15)
     plt.axis('equal')
-    plt.savefig(f'{out_dir}KFwE_PCA_UMAP_{allele}_{str(length)}_hits.pdf');
+    
+    if title != None:
+        plt.title(title, fontsize=15)
+    
+    if save_path != None:
+        plt.savefig(save_path);
     
     
 def get_logo_df(peptides, length):
+    """Return a pandas dataframe for the input peptide sequences.
+
+    Args:
+        peptides: A list of peptide sequences.
+        length: The length of peptides to include in the returned dataframe.
+
+    Returns:
+        A pandas dataframe containing the amino acid frequencies for the input peptides of the specified length.
+
+    """
     peps = [pp for pp in peptides if len(pp) == length]
     
     aa_counts = pd.Series([pd.DataFrame(peps)[0].str.slice(i,i+1).str.cat() for i in range(0,length)]).apply(Counter)

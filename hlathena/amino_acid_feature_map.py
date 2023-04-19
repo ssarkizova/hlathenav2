@@ -51,7 +51,7 @@ class AminoAcidFeatureMap:
     def get_feature_count(self) -> int:
         """Return amino acid feature count
         """
-        return self.feature_count()
+        return self.feature_count
 
     def _set_feature_count(self) -> None:
         """Set class' feature count property
