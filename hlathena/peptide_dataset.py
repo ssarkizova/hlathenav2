@@ -9,7 +9,11 @@ import sklearn.preprocessing  # Peptide encoding
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
+from Bio import SeqIO
+import ahocorasick
+import importlib_resources
 
+from hlathena import references
 from hlathena.amino_acid_feature_map import AminoAcidFeatureMap
 from hlathena.definitions import AMINO_ACIDS, INVERSE_AA_MAP
 
@@ -101,15 +105,19 @@ class PeptideDataset(Dataset):
         """
         Set peptide length if peptides are valid sequences & are all the same length
         """
+        pep_len = None
         try:
             self._check_valid_lengths()
             self._check_peps_present()
             self._check_valid_sequences()
             pep_len = len(self.peptides[0])
             assert(all(len(pep)==pep_len for pep in self.peptides))
+            
         except AssertionError:
             print("Peptides are different lengths. Peptide lengths must be equal.")
+        
         return pep_len
+        
 
     
     def _check_valid_lengths(self) -> None:
@@ -221,3 +229,66 @@ class PeptideDataset(Dataset):
         else:
             peptide = ''.join([INVERSE_AA_MAP[aa.item()] for aa in dense])
         return peptide
+    
+    
+    def get_reference_gene_ids(self, \
+                               ref_fasta: str = None, \
+                               add_context: bool = True):
+        """
+        Given a reference FASTA file and a list of peptide sequences, this function identifies the gene(s) 
+        in the reference file that produce each peptide sequence, and returns a DataFrame with information 
+        about the peptide, the corresponding gene(s), and (optionally) flanking amino acid sequences.
+
+        Args:
+            ref_fasta (str): Path to a reference fasta containing protein sequences. If None, 
+                a default fasta file is used.
+            add_context (bool): If True, add columns to the output DataFrame containing the 30 amino acids 
+                upstream and downstream of each peptide sequence.
+
+        Returns:
+            A DataFrame with columns for the peptide sequence, corresponding gene(s), 
+                and optional flanking amino acid sequences.
+        """
+        seqs = self.peptides
+
+        automaton = ahocorasick.Automaton()
+        for idx, key in enumerate(seqs):
+            automaton.add_word(key, (idx, key))
+
+        automaton.make_automaton()
+        
+        if ref_fasta is None:
+            references = importlib_resources.files('hlathena').joinpath('references')
+            ref_fasta = str(references.joinpath(f'HUGO_proteome.fa'))
+        record_dict = SeqIO.index(ref_fasta, "fasta")
+        
+        new_df = []
+        for idx, key in enumerate(record_dict):
+            hugo = record_dict[key].name.split("|")[1]
+            seq = str(record_dict[key].seq)
+            for end_index, (insert_order, original_value) in automaton.iter(seq):
+                start_index = end_index - len(original_value) + 1
+                peptide_info = [original_value, hugo]
+
+                if add_context:
+                    ctx_up_start = start_index - 30 if start_index > 30 else 0
+                    ctx_down_end = end_index + 30 if len(seq) > end_index + 30 else len(seq)
+
+                    up_seq = seq[ctx_up_start:start_index]
+                    dn_seq = seq[end_index+1:ctx_down_end]
+
+                    if len(up_seq) < 30:
+                        up_seq = "-"*(30-len(up_seq)) + up_seq
+                    if len(dn_seq) < 30:
+                        dn_seq = dn_seq + "-"*(30-len(dn_seq))
+
+                    peptide_info += [up_seq, dn_seq]
+                    if not peptide_info in new_df:
+                        new_df.append(peptide_info)
+                else:
+                    if not peptide_info in new_df:
+                        new_df.append(peptide_info)
+        if add_context:
+            return pd.DataFrame(new_df, columns=['seq','Hugo_Symbol','ctex_up','ctex_dn'])
+        else:
+            return pd.DataFrame(new_df, columns=['seq','Hugo_Symbol'])
