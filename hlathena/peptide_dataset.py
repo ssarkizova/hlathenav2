@@ -1,7 +1,7 @@
 """ Featurized peptide dataset """
 
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Union
 import numpy as np
 import pandas as pd
 import sklearn
@@ -33,9 +33,10 @@ class PeptideDataset(Dataset):
         encoded_peptides (List[Tensor]): list of feature tensors for training
 
     """
-
+    
+    
     def __init__(self, \
-                 pep_df: pd.DataFrame, \
+                 pep_df: pd.DataFrame,
                  peplen: int=None, \
                  allele: str=None, \
                  label_col: str=None, \
@@ -292,3 +293,4 @@ class PeptideDataset(Dataset):
             return pd.DataFrame(new_df, columns=['seq','Hugo_Symbol','ctex_up','ctex_dn'])
         else:
             return pd.DataFrame(new_df, columns=['seq','Hugo_Symbol'])
+      
