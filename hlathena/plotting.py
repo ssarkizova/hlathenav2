@@ -8,11 +8,17 @@ from scipy import stats
 import umap
 import logomaker
 from sklearn.cluster import DBSCAN
+import seaborn as sns
+import matplotlib.patches as mpatches
+from matplotlib.colors import ListedColormap
 
 from hlathena.definitions import AMINO_ACIDS
 
 
-def plot_length(peptides: List[str]) -> None:
+markers = list(plt.Line2D.filled_markers)
+
+
+def plot_length(pep_df: pd.DataFrame, pep_col: str = 'seq', label_col: str = None) -> None:
     """Plot the distribution of peptide lengths.
 
     Args:
@@ -24,20 +30,21 @@ def plot_length(peptides: List[str]) -> None:
     Raises:
         IndexError: No peptides provided for plotting
     """
-    if not len(peptides):
+    if not pep_df.shape[0]:
         raise IndexError("No peptides provided for plotting")
-        
-    ncol_plot = 1
-    fig, axs = plt.subplots(1, ncol_plot, sharex=False, sharey=False, figsize=(4.5*ncol_plot, 4));
-    pep_df = pd.DataFrame(peptides, columns = ['seq'])
-    pep_df['length'] = pep_df['seq'].str.len()
-    ax = axs
-    pep_df['length'].value_counts().sort_index().plot.bar(ax=ax);
-    ax.set_title(f'Length distribution (n={pep_df.shape[0]})');
     
+    pep_df['length'] = pep_df[pep_col].str.len()
+    fig, ax = plt.subplots(1, 1, sharex=False, sharey=False, figsize=(4.5, 4));
+
+    if not label_col is None:
+        sns.countplot(data=pep_df, x='length', hue=label_col, ax=ax)
+    else:
+        pep_df['length'].value_counts().sort_index().plot.bar(ax=ax);
+        ax.set_title(f'Length distribution (n={pep_df.shape[0]})')
+        
 
     
-def plot_logo(peptides: List[str], length: int = None) -> None:
+def plot_logo(pep_df: pd.DataFrame, length: int = None, pep_col: str = 'seq', label_col: str = None) -> None:
     """Plot the sequence logo for a given allele and peptide length.
 
     Args:
@@ -52,17 +59,40 @@ def plot_logo(peptides: List[str], length: int = None) -> None:
         IndexError: If `peptides` is empty.
 
     """
+    peptides = pep_df[pep_col]
     
     if not len(peptides):
         raise IndexError("No peptides for plotting")
 
+    
     pep_lengths = list(set([len(pep) for pep in peptides]))
     
     if not length is None or len(pep_lengths) < 2:
-        length = pep_lengths[0] if length is None else length
-        logo_df = get_logo_df(peptides, length)
-        logo = logomaker.Logo(logo_df)
-        logo.ax.set_title(f'Length {length} (n={logo_df.shape[0]})');
+        if not label_col is None:
+            
+            num_cols = 3
+            num_rows = math.ceil(len(pep_df[label_col].unique()) / num_cols)
+            height_per_row = 2
+            width_per_col = 4
+            fig = plt.figure(figsize=[width_per_col * num_cols, height_per_row * num_rows])
+
+            for i, (label, d) in enumerate(pep_df.groupby(label_col)):
+                num_row, num_col = divmod(i, num_cols)
+                ax = plt.subplot2grid((num_rows, num_cols), (num_row, num_col))
+                # peps = d[pep_col]
+                peps = [pp for pp in d[pep_col] if len(pp) == length]
+                logo_df = get_logo_df(peps, length)
+                logomaker.Logo(logo_df,
+                           ax=ax,                    
+                           show_spines=False);
+                ax.set_xticks([]);
+                ax.set_yticks([]);
+                ax.set_title(f'{label}, Length {length} (n={len(peps)})')
+        else: 
+            peps = [pp for pp in peptides if len(pp) == length]
+            logo_df = get_logo_df(peps, length)
+            logo = logomaker.Logo(logo_df)
+            logo.ax.set_title(f'Length {length} (n={len(peps)})');
     
     
     else:
@@ -78,8 +108,8 @@ def plot_logo(peptides: List[str], length: int = None) -> None:
 
             num_row, num_col = divmod(i, num_cols)    
             ax = plt.subplot2grid((num_rows, num_cols), (num_row, num_col))
-
-            logomaker.Logo(get_logo_df(peps, l),
+            logo_df = get_logo_df(peps, l)
+            logomaker.Logo(logo_df,
                            ax=ax,                    
                            show_spines=False);
 
@@ -92,7 +122,11 @@ def plot_logo(peptides: List[str], length: int = None) -> None:
 
 
 
-def plot_umap(feature_matrix: pd.DataFrame, title: str=None, save_path: str=None) -> None:
+def plot_umap(umap_embedding_df: pd.DataFrame, 
+              clustered: bool = False,
+              label_col: str = None,
+              title: str=None, 
+              save_path: str=None) -> None:
     """Plot the UMAP embedding for a given allele and peptide length.
 
     Args:
@@ -104,27 +138,34 @@ def plot_umap(feature_matrix: pd.DataFrame, title: str=None, save_path: str=None
         None
 
     """
+    
+    if clustered:
+        plot_clustered_umap(umap_embedding_df, label_col=label_col, title=title, save_path=save_path)
+    else:
+        fig, ax = plt.subplots(1,1, figsize=(8,8))
+        
+        if not label_col is None:
+            for i, (label, d) in enumerate(umap_embedding_df.groupby(label_col)):
+                ax.scatter(d.loc[:, 'd1'], 
+                        d.loc[:, 'd2'], 
+                        s=40, facecolors='none', edgecolors='black', linewidths=0.5,
+                        marker=markers[i], label = label)
+                ax.legend()
 
-    # UMAP embedding
-    umap_transform = umap.UMAP(n_neighbors=5, min_dist=0.5, random_state=42).fit(feature_matrix)
-    # the hits, i.e. identical to above but here as an example how to embed new data
-    umap_embedding_hits = umap_transform.transform(feature_matrix) 
+        else:
+            ax.scatter(umap_embedding_df.loc[:, 'd1'], 
+                        umap_embedding_df.loc[:, 'd2'], 
+                        s=40, facecolors='none', edgecolors='black', linewidths=0.5, alpha=0.75)
+    
+        plt.xlabel('umap1', fontsize=15)
+        plt.ylabel('umap2', fontsize=15)
+        plt.axis('equal')
+    
+        if title != None:
+            plt.title(title, fontsize=15)
 
-    
-    ### UMAP plot
-    plt.figure(figsize = (6,6))
-    plt.scatter(umap_embedding_hits[:, 0], umap_embedding_hits[:, 1], 
-                s=10, facecolors='none', edgecolors='black', linewidths=0.1, alpha=0.75)
-    plt.xlabel('umap1', fontsize=15)
-    plt.ylabel('umap2', fontsize=15)
-    plt.axis('equal')
-    
-    if title != None:
-        plt.title(title, fontsize=15)
-    
-    if save_path != None:
-        plt.savefig(save_path);
-    
+        if save_path != None:
+            plt.savefig(save_path);
     
 def get_logo_df(peptides, length):
     """Return a pandas dataframe for the input peptide sequences.
@@ -148,59 +189,48 @@ def get_logo_df(peptides, length):
     return df
 
 
-def plot_clustered_umap(feature_matrix: pd.DataFrame, \
-                        label_df: pd.DataFrame = None, \
-                        label_col: str = 'label', \
-                        eps: int = 3, \
-                        min_samples: int = 7, \
+
+def plot_clustered_umap(umap_embedding_df: pd.DataFrame, \
+                        # label_df: pd.DataFrame = None, \
+                        label_col: str = None, \
                         title: str=None, \
-                        save_path: str=None):
-    # UMAP embedding
-    umap_transform = umap.UMAP(n_neighbors=5, min_dist=0.5, random_state=42).fit(feature_matrix)
-    
-    # the hits, i.e. identical to above but here as an example how to embed new data
-    umap_embedding_hits = umap_transform.transform(feature_matrix) 
-    hits_peps = feature_matrix.index.values
+                        save_path: str=None):   
 
-    umap_embedding_df = pd.DataFrame(np.column_stack((hits_peps, umap_embedding_hits)), columns=['seq','d1','d2'])
+    nclust = len(umap_embedding_df['cluster'].unique())
+    sns_colors = sns.color_palette('tab20', nclust)
+    cmap = ListedColormap(sns_colors)
     
-    
-    subclust = DBSCAN(eps=eps, min_samples=min_samples).fit(umap_embedding_df.loc[:,['d1','d2']])
-    subclust_freqs = Counter(subclust.labels_)
-    nclust = len(np.unique(subclust.labels_))
-    ci_order_by_size = subclust_freqs.most_common()
-    
-    # Re-order cluster numbers by size of cluster (high to low)
-    size_map_dict = dict(zip([ci[0] for ci in ci_order_by_size], range(nclust)))
-
-    umap_embedding_df['cluster'] = pd.Series(
-                                             pd.Series(subclust.labels_).map(size_map_dict), 
-                                             index=umap_embedding_df.index)
-    umap_embedding_df = umap_embedding_df.set_index('seq')
-    
-    cmap = plt.cm.get_cmap('tab20', nclust)
-    markers = list(plt.Line2D.filled_markers)
-
-    plt.figure(figsize = (6,6))
-    
-    if not label_df is None:
-        umap_embedding_df = umap_embedding_df.join(label_df)
+    fig, (ax0, ax1) = plt.subplots(1,2, figsize=(10,8), gridspec_kw={'width_ratios': [4, 1]})
+    if not label_col is None:
         for i, (label, d) in enumerate(umap_embedding_df.groupby(label_col)):
-            plt.scatter(d.loc[:, 'd1'], 
+            ax0.scatter(d.loc[:, 'd1'], 
                     d.loc[:, 'd2'], 
                     s=40, facecolors='none', linewidths=0.5, 
                     edgecolors=cmap(d.loc[:, 'cluster']),
-                    marker=markers[i], label = label)
+                    marker=markers[i], label=label)
+        
+        sns.countplot(data=umap_embedding_df, y='cluster', hue=label_col, ax=ax1)
+        
     else:
-        plt.scatter(umap_embedding_df.loc[:, 'd1'], 
+        ax0.scatter(umap_embedding_df.loc[:, 'd1'], 
             umap_embedding_df.loc[:, 'd2'], 
-            s=10, facecolors='none', linewidths=0.5, 
+            s=40, facecolors='none', linewidths=0.5, 
             edgecolors=cmap(umap_embedding_df.loc[:, 'cluster'])) 
+        handles, labels = ax0.get_legend_handles_labels()
+        
+        sns.countplot(data=umap_embedding_df, y='cluster', ax=ax1, palette=sns_colors)
 
-    plt.xlabel('umap1', fontsize=15)
-    plt.ylabel('umap2', fontsize=15)
-    plt.legend(fontsize = 15)
-    plt.axis('equal')
+    ax0.set_xlabel('umap1', fontsize=15)
+    ax0.set_ylabel('umap2', fontsize=15)
+    
+    clust_labels = [c for c in np.sort(umap_embedding_df['cluster'].unique())]
+    clust_handles = [mpatches.Patch(color=cmap(c), label=c) for c in clust_labels]
+    handles, labels = ax0.get_legend_handles_labels()
+    handles.extend(clust_handles)
+    labels.extend(clust_labels)
+        
+    ax0.legend(handles=handles, labels=labels)
+    ax0.axis('equal')
     
     if title != None:
         plt.title(title, fontsize=15)
@@ -209,3 +239,41 @@ def plot_clustered_umap(feature_matrix: pd.DataFrame, \
         plt.savefig(save_path)
     
     plt.show()
+    
+
+def get_umap_embedding(feature_matrix: pd.DataFrame, 
+                       n_neighbors: int = 5, 
+                       min_dist: float = 0.5, 
+                       random_state: int = 42):
+    # UMAP embedding
+    umap_transform = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist, random_state=random_state).fit(feature_matrix)
+    
+    # the hits, i.e. identical to above but here as an example how to embed new data
+    umap_embedding_hits = umap_transform.transform(feature_matrix) 
+    hits_peps = feature_matrix.index.values
+
+    umap_embedding_df = pd.DataFrame(np.column_stack(
+                                        (hits_peps, umap_embedding_hits)), 
+                                        columns=['seq','d1','d2'])
+    
+    return umap_embedding_df
+
+
+def get_peptide_clustering(umap_embedding: pd.DataFrame,
+                           eps: int = 3,
+                           min_samples: int = 7):
+
+    subclust = DBSCAN(eps=eps, min_samples=min_samples).fit(umap_embedding.loc[:,['d1','d2']])
+    subclust_freqs = Counter(subclust.labels_)
+    nclust = len(np.unique(subclust.labels_))
+    ci_order_by_size = subclust_freqs.most_common()
+    
+    # Re-order cluster numbers by size of cluster (high to low)
+    size_map_dict = dict(zip([ci[0] for ci in ci_order_by_size], range(nclust)))
+
+    umap_embedding['cluster'] = pd.Series(
+                                             pd.Series(subclust.labels_).map(size_map_dict), 
+                                             index=umap_embedding.index)
+
+    return umap_embedding
+                           

@@ -104,6 +104,6 @@ def add_tcga_expression(pep_df: pd.DataFrame, cancer_type: str, hugo_col: str = 
     
     ref_expr_df = pd.read_table(ref_expr, sep='\t', usecols=['Gene symbol', 'Cancer Sample Med'])
     
-    annotated_df = pep_df.merge(ref_expr_df, left_on='Hugo_Symbol', right_on='Gene symbol').drop(columns=['Gene symbol'])
+    annotated_df = pep_df.merge(ref_expr_df, left_on=hugo_col, right_on='Gene symbol').drop(columns=['Gene symbol'])
     annotated_df = annotated_df.rename(columns={"Cancer Sample Med": f"{cancer_type}_TPM"})
     return annotated_df
