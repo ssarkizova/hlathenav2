@@ -7,9 +7,13 @@ from typing import List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import umap
 import sklearn.preprocessing
 import importlib_resources
-import sklearn.preprocessing
+from sklearn.cluster import DBSCAN
+from collections import Counter
+
+
 
 from hlathena import data
 from hlathena.definitions import AMINO_ACIDS
@@ -114,3 +118,65 @@ def PCA_encode(peptides: List[str], \
         columns=['PC{0}'.format(i) for i in range(len(evecs))])    
     
     return peps_wE_pca_nocenter_df
+
+
+def get_umap_embedding(feature_matrix: pd.DataFrame, \
+                        n_neighbors: int = 5, \
+                        min_dist: float = 0.5, \
+                        random_state: int = 42):
+    """Create UMAP embedding dataframe for peptides.
+
+    Args:
+        feature_matrix (pd.DataFrame): A dataframe with the peptide PCA encoding.
+        n_neighbors (int, optional):   This parameter controls the balance between local versus global structure in the data.
+        min_dist (float, optional):    This parameter controls how tightly points are packed together.
+        random_state (int, optional):  This is the random state seed value which can be fixed to ensure reproducibility.
+
+
+    Returns:
+        A pandas dataframe with the UMAP embedding of the peptide sequences.
+
+    """
+    # UMAP embedding
+    umap_transform = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist, random_state=random_state).fit(feature_matrix)
+    # the hits, i.e. identical to above but here as an example how to embed new data
+    umap_embedding_hits = umap_transform.transform(feature_matrix) 
+    hits_peps = feature_matrix.index.values
+
+    umap_embedding_df = pd.DataFrame(np.column_stack(
+                                        (hits_peps, umap_embedding_hits)), 
+                                        columns=['seq','d1','d2'])
+    
+    return umap_embedding_df
+
+
+def get_peptide_clustering(umap_embedding: pd.DataFrame,
+                           eps: int = 3,
+                           min_samples: int = 7):
+    """Label peptide clusters.
+
+    Args:
+        umap_embedding (pd.DataFrame): A dataframe with the peptide PCA encoding.
+        eps (int, optional):           The maximum distance between two samples for one to be considered as in the neighborhood of the other.
+        min_samples (int, optional):   The number of samples (or total weight) in a neighborhood for a point to be considered as a core point.
+        
+
+    Returns:
+        UMAP DataFrame with 'cluster' column. 
+
+    """
+    
+    subclust = DBSCAN(eps=eps, min_samples=min_samples).fit(umap_embedding.loc[:,['d1','d2']])
+    subclust_freqs = Counter(subclust.labels_)
+    nclust = len(np.unique(subclust.labels_))
+    ci_order_by_size = subclust_freqs.most_common()
+    
+    # Re-order cluster numbers by size of cluster (high to low)
+    size_map_dict = dict(zip([ci[0] for ci in ci_order_by_size], range(nclust)))
+
+    umap_embedding['cluster'] = pd.Series(
+                                             pd.Series(subclust.labels_).map(size_map_dict), 
+                                             index=umap_embedding.index)
+
+    return umap_embedding
+                           

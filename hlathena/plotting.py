@@ -1,13 +1,13 @@
 import math
-from collections import Counter
 from typing import List
+from collections import Counter
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy import stats
-import umap
+# import umap
 import logomaker
-from sklearn.cluster import DBSCAN
+# from sklearn.cluster import DBSCAN
 import seaborn as sns
 import matplotlib.patches as mpatches
 from matplotlib.colors import ListedColormap
@@ -22,10 +22,12 @@ def plot_length(pep_df: pd.DataFrame, pep_col: str = 'seq', label_col: str = Non
     """Plot the distribution of peptide lengths.
 
     Args:
-        peptides (List[str]): A list of peptide sequences.
+        pep_df (pd.DataFrame):     A dataframe with a column of peptide sequences.
+        pep_col (str, optional):   The name of the peptide sequence column. Default value is 'seq'.
+        label_col (str, optional): The name of a column denoting the peptide category for length comparison. Default value is None, in which case no length category comparison will be performed.
 
     Returns:
-        None
+        The matplotlib Axes object with the length plot.
         
     Raises:
         IndexError: No peptides provided for plotting
@@ -41,6 +43,7 @@ def plot_length(pep_df: pd.DataFrame, pep_col: str = 'seq', label_col: str = Non
     else:
         pep_df['length'].value_counts().sort_index().plot.bar(ax=ax);
         ax.set_title(f'Length distribution (n={pep_df.shape[0]})')
+    return ax
         
 
     
@@ -48,9 +51,11 @@ def plot_logo(pep_df: pd.DataFrame, length: int = None, pep_col: str = 'seq', la
     """Plot the sequence logo for a given allele and peptide length.
 
     Args:
-        peptides (List[str]):   A list of peptide sequences.
-        length (int, optional): The length of peptides to plot. If not provided, the function 
-                                will plot all lengths found in `peptides`
+        pep_df (pd.DataFrame):     A dataframe with a column of peptide sequences.
+        length (int, optional):    The length of peptides to plot. If not provided, the function 
+                                   will plot all lengths found in `peptides`.
+        pep_col (str, optional):   The name of the peptide sequence column. Default value is 'seq'.
+        label_col (str, optional): The name of a column denoting the peptide category for length comparison. Default value is None, in which case no logo category comparison will be performed.
 
     Returns:
         None
@@ -127,12 +132,14 @@ def plot_umap(umap_embedding_df: pd.DataFrame,
               label_col: str = None,
               title: str=None, 
               save_path: str=None) -> None:
-    """Plot the UMAP embedding for a given allele and peptide length.
+    """Plot the UMAP for a given UMAP embedding dataframe. 
 
     Args:
-        tsv_file (str): The path to the input TSV file.
-        allele (str): The HLA allele to plot.
-        length (int): The length of peptides to plot.
+        umap_embedding_df (pd.DataFrame): A dataframe with the UMAP features. Columns 'seq' (peptide sequences),'d1', and 'd2' are expected.
+        clustered (bool, optional):       Indicates whether UMAP embedding has a 'cluster' column. Default is false.
+        label_col (str, optional):        The name of a column denoting the peptide category for comparison. Default value is None, in which case no category comparison will be performed.
+        title (str, optional):            Optional plot title, defaults to None.
+        save_path (str, optional):        Path where that figure will be saved to. Optional, default is None.
 
     Returns:
         None
@@ -167,12 +174,13 @@ def plot_umap(umap_embedding_df: pd.DataFrame,
         if save_path != None:
             plt.savefig(save_path);
     
-def get_logo_df(peptides, length):
+    
+def get_logo_df(peptides: List[str], length: int):
     """Return a pandas dataframe for the input peptide sequences.
 
     Args:
-        peptides: A list of peptide sequences.
-        length: The length of peptides to include in the returned dataframe.
+        peptides (List[str]): A list of peptide sequences.
+        length (int): The length of peptides to include in the returned dataframe.
 
     Returns:
         A pandas dataframe containing the amino acid frequencies for the input peptides of the specified length.
@@ -195,7 +203,19 @@ def plot_clustered_umap(umap_embedding_df: pd.DataFrame, \
                         label_col: str = None, \
                         title: str=None, \
                         save_path: str=None):   
+    """Plot the  clustered UMAP for a given UMAP embedding dataframe. 
 
+    Args:
+        umap_embedding_df (pd.DataFrame): A dataframe with the UMAP features. Columns 'seq', 'd1', 'd2', and 'cluster' are expected.
+        label_col (str, optional):        The name of a column denoting the peptide category for comparison. Default value is None, in which case no category comparison will be performed.
+        title (str, optional):            Optional plot title, defaults to None.
+        save_path (str, optional):        Path where that figure will be saved to. Optional, default is None.
+
+
+    Returns:
+        None
+
+    """
     nclust = len(umap_embedding_df['cluster'].unique())
     sns_colors = sns.color_palette('tab20', nclust)
     cmap = ListedColormap(sns_colors)
@@ -241,39 +261,65 @@ def plot_clustered_umap(umap_embedding_df: pd.DataFrame, \
     plt.show()
     
 
-def get_umap_embedding(feature_matrix: pd.DataFrame, 
-                       n_neighbors: int = 5, 
-                       min_dist: float = 0.5, 
-                       random_state: int = 42):
-    # UMAP embedding
-    umap_transform = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist, random_state=random_state).fit(feature_matrix)
+# def get_umap_embedding(feature_matrix: pd.DataFrame, 
+#                        n_neighbors: int = 5, 
+#                        min_dist: float = 0.5, 
+#                        random_state: int = 42):
+#      """Create UMAP embedding dataframe for peptides.
+
+#     Args:
+#         feature_matrix (pd.DataFrame): A dataframe with the peptide PCA encoding.
+#         n_neighbors (int, optional):   This parameter controls the balance between local versus global structure in the data.
+#         min_dist (float, optional):          This parameter controls how tightly points are packed together.
+#         random_state (int, optional):        This is the random state seed value which can be fixed to ensure reproducibility.
+
+
+#     Returns:
+#         None
+
+#     """
     
-    # the hits, i.e. identical to above but here as an example how to embed new data
-    umap_embedding_hits = umap_transform.transform(feature_matrix) 
-    hits_peps = feature_matrix.index.values
-
-    umap_embedding_df = pd.DataFrame(np.column_stack(
-                                        (hits_peps, umap_embedding_hits)), 
-                                        columns=['seq','d1','d2'])
+#     # UMAP embedding
+#     umap_transform = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist, random_state=random_state).fit(feature_matrix)
     
-    return umap_embedding_df
+#     # the hits, i.e. identical to above but here as an example how to embed new data
+#     umap_embedding_hits = umap_transform.transform(feature_matrix) 
+#     hits_peps = feature_matrix.index.values
 
-
-def get_peptide_clustering(umap_embedding: pd.DataFrame,
-                           eps: int = 3,
-                           min_samples: int = 7):
-
-    subclust = DBSCAN(eps=eps, min_samples=min_samples).fit(umap_embedding.loc[:,['d1','d2']])
-    subclust_freqs = Counter(subclust.labels_)
-    nclust = len(np.unique(subclust.labels_))
-    ci_order_by_size = subclust_freqs.most_common()
+#     umap_embedding_df = pd.DataFrame(np.column_stack(
+#                                         (hits_peps, umap_embedding_hits)), 
+#                                         columns=['seq','d1','d2'])
     
-    # Re-order cluster numbers by size of cluster (high to low)
-    size_map_dict = dict(zip([ci[0] for ci in ci_order_by_size], range(nclust)))
+#     return umap_embedding_df
 
-    umap_embedding['cluster'] = pd.Series(
-                                             pd.Series(subclust.labels_).map(size_map_dict), 
-                                             index=umap_embedding.index)
 
-    return umap_embedding
+# def get_peptide_clustering(umap_embedding: pd.DataFrame,
+#                            eps: int = 3,
+#                            min_samples: int = 7):
+#     """Label peptide clusters.
+
+#     Args:
+#         umap_embedding (pd.DataFrame): A dataframe with the peptide PCA encoding.
+#         eps (int, optional):           The maximum distance between two samples for one to be considered as in the neighborhood of the other.
+#         min_samples (int, optional):   The number of samples (or total weight) in a neighborhood for a point to be considered as a core point.
+        
+
+#     Returns:
+#         UMAP DataFrame with 'cluster' column. 
+
+#     """
+    
+#     subclust = DBSCAN(eps=eps, min_samples=min_samples).fit(umap_embedding.loc[:,['d1','d2']])
+#     subclust_freqs = Counter(subclust.labels_)
+#     nclust = len(np.unique(subclust.labels_))
+#     ci_order_by_size = subclust_freqs.most_common()
+    
+#     # Re-order cluster numbers by size of cluster (high to low)
+#     size_map_dict = dict(zip([ci[0] for ci in ci_order_by_size], range(nclust)))
+
+#     umap_embedding['cluster'] = pd.Series(
+#                                              pd.Series(subclust.labels_).map(size_map_dict), 
+#                                              index=umap_embedding.index)
+
+#     return umap_embedding
                            

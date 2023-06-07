@@ -9,7 +9,7 @@ from hlathena import references
 
 exp_references = importlib_resources.files('hlathena').joinpath('references').joinpath('expression')
 
-def list_expression_references() -> pd.DataFrame:
+def list_tcga_expression_references() -> pd.DataFrame:
     """
     Returns:
         Dataframe with TCGA cancer type abbreviations and descriptions. 
