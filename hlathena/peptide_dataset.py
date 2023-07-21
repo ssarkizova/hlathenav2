@@ -152,10 +152,10 @@ class PeptideDataset(Dataset):
         else:
             return self.encoded_peptides[idx], self.pep_df['ha__target'][idx]
         
-    def get_peptide_list(self) -> List[str]:
+    def get_peptides(self) -> List[str]:
         return self.pep_df['ha__pep'].values
 
-    def get_pep_lengths(self) -> List[int]:
+    def get_peptide_lengths(self) -> List[int]:
         return np.unique(self.pep_df['ha__pep_len'])
     
     def get_alleles(self) -> List[str]:
@@ -163,7 +163,23 @@ class PeptideDataset(Dataset):
             return np.unique(self.pep_df['ha__allele'])
         else: 
             return None
-        
+    
+    def get_allele_peptide_counts(self) -> List[str]:
+        if 'ha__allele' in self.pep_df.columns:
+            tbl = pd.DataFrame(self.pep_df.groupby(["allele"]).size())
+            tbl.columns = ['n_pep']
+            return tbl
+        else: 
+            return None
+    
+    def get_allele_peptide_length_counts(self) -> List[str]:
+        if 'ha__allele' in self.pep_df.columns:
+            tbl = self.pep_df.groupby(["ha__allele", 'ha__pep_len']).size()
+            tbl = tbl.unstack(level='ha__pep_len').sort_index().fillna(0).astype(int)
+            return tbl
+        else: 
+            return None
+
     def _check_peps_present(self) -> None:
         """
         Check that there are peptides in the peptide set
@@ -185,12 +201,6 @@ class PeptideDataset(Dataset):
         except AssertionError:
              print("Peptides sequences contain invalid characters. \
                    Please ensure peptides sequences only contain the 20 standard amino acid symbols.") 
-
-    def _split_peptides(self) -> List[List[str]]:
-        """
-        Split peptides into list of list of amino acids
-        """
-        return [list(pep) for pep in self.get_peptide_list()]
 
     def _check_supported_peptide_lengths(self) -> None:
         """
@@ -217,6 +227,14 @@ class PeptideDataset(Dataset):
     # TO DO: similarly to the Terra workflow, add some code to standardize allele names; Perhaps this belongs in a generic 'tools' .py
     def format_allele_names(self) -> None:
         pass
+
+        
+    def _split_peptides(self) -> List[List[str]]:
+        """
+        Split peptides into list of list of amino acids
+        """
+        return [list(pep) for pep in self.get_peptides()]
+    
 
     def subset_data(
             self,
