@@ -135,14 +135,14 @@ def get_umap_embedding(feature_matrix: pd.DataFrame, \
 
     """
     # UMAP embedding
-    umap_transform = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist, random_state=random_state).fit(feature_matrix)
-    # the hits, i.e. identical to above but here as an example how to embed new data
-    umap_embedding_hits = umap_transform.transform(feature_matrix) 
-    hits_peps = feature_matrix.index.values
-
-    umap_embedding_df = pd.DataFrame(np.column_stack(
-                                        (hits_peps, umap_embedding_hits)), 
-                                        columns=['seq','d1','d2'])
+    umap_transform = umap.UMAP(n_neighbors=n_neighbors, 
+                               in_dist=min_dist, 
+                               random_state=random_state).fit(feature_matrix)
+    # the hits, i.e. identical to above but here as an example how to embed new data - TO DO CHECK
+    umap_embedding = umap_transform.transform(feature_matrix)     
+    umap_embedding_df = pd.DataFrame(
+        np.column_stack((feature_matrix.index.values, umap_embedding)), 
+        columns=['pep','umap_1','umap_2'])
     
     return umap_embedding_df
 
@@ -163,7 +163,7 @@ def get_peptide_clustering(umap_embedding: pd.DataFrame,
 
     """
     
-    subclust = DBSCAN(eps=eps, min_samples=min_samples).fit(umap_embedding.loc[:,['d1','d2']])
+    subclust = DBSCAN(eps=eps, min_samples=min_samples).fit(umap_embedding.loc[:,['umap_1','umap_2']])
     subclust_freqs = Counter(subclust.labels_)
     nclust = len(np.unique(subclust.labels_))
     ci_order_by_size = subclust_freqs.most_common()
@@ -172,8 +172,8 @@ def get_peptide_clustering(umap_embedding: pd.DataFrame,
     size_map_dict = dict(zip([ci[0] for ci in ci_order_by_size], range(nclust)))
 
     umap_embedding['cluster'] = pd.Series(
-                                             pd.Series(subclust.labels_).map(size_map_dict), 
-                                             index=umap_embedding.index)
+        pd.Series(subclust.labels_).map(size_map_dict), 
+        index=umap_embedding.index)
 
     return umap_embedding
                            
