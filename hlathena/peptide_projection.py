@@ -2,7 +2,7 @@
 import logging
 import os
 import time
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,12 +13,10 @@ import importlib_resources
 from sklearn.cluster import DBSCAN
 from collections import Counter
 
-
-
-from hlathena import data
 from hlathena.definitions import AMINO_ACIDS
 from hlathena.peptide_dataset import PeptideDataset
-
+from hlathena.amino_acid_feature_map import AminoAcidFeatureMap
+from hlathena.pep_encoder import PepEncoder
 
 def PCA_numpy_SVD(X, rowvar=False):
     """Computes the PCA of a matrix using SVD.
@@ -43,7 +41,9 @@ def PCA_numpy_SVD(X, rowvar=False):
     return evals, evecs, explained_variances
 
 
-def pep_pos_weight(encoded_pep_df: pd.DataFrame, pos_weights: List[float], aafeatmat: pd.DataFrame):
+def pep_pos_weight(encoded_pep_df: pd.DataFrame, 
+                   pos_weights: List[float], 
+                   aafeatmat: pd.DataFrame):
     """Weight amino acid features by position.
 
     Args:
@@ -62,11 +62,11 @@ def pep_pos_weight(encoded_pep_df: pd.DataFrame, pos_weights: List[float], aafea
     return encoded_pep_df
 
 
-def PCA_encode(peptides: List[str], \
-               allele: str, \
-               peplen: int, \
-               aa_featurefiles: List[os.PathLike]=None, \
-               precomp_PCA_path: os.PathLike=None, \
+def PCA_encode(peptides: Union[List[str], PeptideDataset],
+               allele: str,
+               peplen: int,
+               aa_featuremap,
+               precomp_PCA_path: os.PathLike=None,
                save_PCA_path: os.PathLike=None) -> pd.DataFrame:
     """Encodes peptides and performs PCA.
 
@@ -74,31 +74,28 @@ def PCA_encode(peptides: List[str], \
         peptides (List[str]): List of peptides to encode.
         allele (str): HLA allele.
         peplen (int): Length of peptides.
-        aa_featurefiles (List[os.PathLike], optional): List of paths to files containing amino acid features (default None).
+        #aa_featurefiles (List[os.PathLike], optional): List of paths to files containing amino acid features (default None).
+        aa_featuremap # TO DO
         precomp_PCA_path (str, optional): Path to precomputed PCA object (default None).
         save_PCA_path (str, optional): Path to save PCA object (default None).
 
     Returns:
         Encoded peptides with PCA applied.
     """
+
+
     data = importlib_resources.files('hlathena').joinpath('data')
     molecularEntropies_MS_file = data.joinpath(f'molecularEntropies_{str(peplen)}_MS.txt')
     molecularEntropies_IEDB_file = data.joinpath(f'molecularEntropies_{str(peplen)}_IEDB.txt')
-    
-    pep_df = pd.DataFrame(peptides, columns=['seq'])
-    
-    peptide_dataset = PeptideDataset(pep_df, peplen=9, aa_featurefiles=aa_featurefiles)
-    
-    encoded_peptides = peptide_dataset.get_aa_encoded_peptide_map()
-    aa_featuremap = peptide_dataset.aa_feature_map
-    
+   
+    encoded_peptides = PepEncoder.get_encoded_peps(peptides, aa_featuremap)
     
     ###  Weight positions by entropy
     molecularEntropies_MS = pd.read_csv(molecularEntropies_MS_file, sep=' ', header=0)
     molecularEntropies_IEDB = pd.read_csv(molecularEntropies_IEDB_file, sep=' ', header=0)
-    molecularEntropies_MS_IEDB = (molecularEntropies_MS + molecularEntropies_IEDB)/2
+    molecularEntropies_MS_IEDB = (molecularEntropies_MS + molecularEntropies_IEDB)/2 # TO DO, we should pre-calc and save this so it's ready to use vs computing each time
     
-    # Average of the allele-specific and pan-allele entropies so we don't miss plausible anchors/subanchors
+    # Average of the allele-specific and pan-allele entropies so we don't miss plausible anchors/subanchors - TO DO, we should pre-calc and save this so it's ready to use vs computing each time
     pos_weights = (((1-molecularEntropies_MS_IEDB.loc[allele,:]) + (1-molecularEntropies_MS_IEDB.loc['Avg',:]))/2).tolist()
     
     encoded_peps_wE = pep_pos_weight(encoded_peptides, pos_weights, aa_featuremap)

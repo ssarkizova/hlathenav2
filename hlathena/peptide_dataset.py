@@ -1,22 +1,26 @@
 """ Featurized peptide dataset """
 
 import os
-from typing import List, Tuple, Union
 import numpy as np
 import pandas as pd
-import sklearn
-import sklearn.preprocessing  # Peptide encoding
+from typing import List, Tuple, Union, Optional
+from pandas.api.types import is_list_like
+
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
+
 from Bio import SeqIO
-import ahocorasick
+# import ahocorasick
 import importlib_resources
 
 from hlathena import references
-from hlathena.amino_acid_feature_map import AminoAcidFeatureMap
-from hlathena.definitions import AMINO_ACIDS, INVERSE_AA_MAP
+from hlathena.definitions import AMINO_ACIDS
+from hlathena.definitions import PEP_LENS
+from hlathena.pep_encoder import PepEncoder
+from hlathena.hla_encoder import HLAEncoder
 
+## TO DO - check if the the output signatures are well defined... e.g. can None pass for a List[str]?
 
 class PeptideDataset(Dataset):
     """
@@ -26,209 +30,226 @@ class PeptideDataset(Dataset):
         peptide_feats_df (pd.DataFrame): dataframe with peptide features for training
         peptide_features_dim (int): count of peptide features
         peptides (np.ndarray): list of hit and decoy peptide
-        binds (np.ndarray): list of target value for peptides
+        #binds (np.ndarray): list of target value for peptides
         peptide_length (int): length of peptides in dataset
+
         aa_feature_map (AminoAcidFeatureMap): amino acid feature dataframe for training
         feature_dimensions (int): count of total features per peptide
         encoded_peptides (List[Tensor]): list of feature tensors for training
 
     """
-    
-    
-    def __init__(self, \
-                 pep_df: pd.DataFrame,
-                 peplen: int=None, \
-                 allele: str=None, \
-                 label_col: str=None, \
-                 aa_featurefiles: List[os.PathLike]=None, \
-                 feat_cols: List[str]=None) -> None:
+
+    def __init__(
+        self,
+        pep_df: pd.DataFrame,
+        pep_col_name: str = 'pep',
+        allele_col_name: Optional[str] = None,        
+        target_col_name: Optional[str] = None) -> None: # SISI: label_col or lavel_value? this can also be a single number? 1 or 0        
         """ Inits a peptide dataset which featurizes the hit and decoy peptides.
 
         Args:
             pep_df (pd.DataFrame): list of peptides
-            peplen (int, optional): length of peptides to include in dataset
-            allele (str, optional): name of allele in `allele` column of pep_df 
-                                        (`allele` column only required if this parameter is specified)
+           
             label_col (str, optional): name of column containing target labels (default is None)
             aa_featurefiles (List[os.PathLike], optional): list of feature matrix files (default one-hot encoding)
-            feat_cols (List[str], optional): list of peptide feature columns
+            feat_cols (List[str], optional): list of columns in the input dataframe (pep_df) 
+                                             which are to be interpreted as peptide features for prediction purposees (e.g. 'TPM')
         """
         super().__init__()
-        
-        if peplen != None:
-            pep_df['length'] = [len(pep) for pep in pep_df['seq']]
-            pep_df = pep_df[pep_df['length']==peplen].copy()
-        
-        if allele != None:
-            pep_df = pep_df[pep_df['allele']==allele].copy()
-        
-        self.peptide_feats_df = pep_df.copy()
-        self.peptide_feats_df.index = self.peptide_feats_df['seq']
-        self.peptide_feats_df.drop(columns="seq", inplace=True)
 
-        feat_cols = [] if feat_cols is None else feat_cols
-        self.peptide_feats_df = self.peptide_feats_df[feat_cols]
+        self.pep_df = pep_df.copy()
+        
+        # Check that the specified peptide column name exist
+        if pep_col_name not in pep_df.columns:
+            raise KeyError(f"Column {pep_col_name} does not exist!")
+        
+        # If specified, check that the sallele column name exist
+        if not allele_col_name is None:
+            if allele_col_name not in pep_df.columns:
+                raise KeyError(f"Column {allele_col_name} does not exist!")
 
-        self.peptide_features_dim = len(list(self.peptide_feats_df.columns))
+        # If specified, check that the allele column name exist
+        if not target_col_name is None:
+            if target_col_name not in pep_df.columns:
+                raise KeyError(f"Column {target_col_name} does not exist!")
 
-        if self.peptide_features_dim:
-            print()
-            print(f'Peptide set features: {list(self.peptide_feats_df.columns)}')
-            print(self.peptide_feats_df.describe())
-            print()
+
+        ### TO DO - add a check to make sure that the 'reserved' column names we will be adding are not present in the dataframe
+
+        # Add standard columns for peptide, peptide length, and optionally allele
+        if not 'ha__pep' in pep_df.columns:
+            self.pep_df.insert(
+                loc=0,
+                column='ha__pep',
+                value=self.pep_df[pep_col_name].apply(str.upper))
             
-        self.peptides = np.asarray(pep_df['seq'].values)
-        self.peptide_length = self._set_peptide_length()
+        if not 'ha__pep_len' in pep_df.columns:
+            self.pep_df.insert(
+                loc=1,
+                column='ha__pep_len',
+                value=self.pep_df[pep_col_name].apply(len))
 
-        self.aa_feature_map: AminoAcidFeatureMap = AminoAcidFeatureMap(featurefiles=aa_featurefiles)
-        self.feature_dimensions: int = (self.aa_feature_map.feature_count * self.peptide_length) \
-                                       + self.peptide_features_dim
+        if not allele_col_name is None:
+            if not 'ha__allele' in pep_df.columns:
+                self.pep_df.insert(
+                    loc=0,
+                    column='ha__allele',
+                    value=self.pep_df[allele_col_name])
+        
+        if not target_col_name is None:
+            if not 'ha__target' in pep_df.columns:
+                self.pep_df.insert(
+                        loc=2,
+                        column='ha__target',
+                        value=self.pep_df[target_col_name])
 
-        self.encoded_peptides: List[Tensor] = self._encode_peptides()
 
-        self.binds = None
-        if not label_col is None:
-            self.binds = torch.from_numpy((pep_df[label_col].to_numpy()))
+        # Check that all pepetides are valid sequences. TO DO - provide option to filter out invalid peps
+        self._check_peps_present()
+        self._check_valid_sequences()
 
+        # TO DO: We want to be able to keep the longer peptides so that we can plot the length distribution and maybe for other analyses as well. Skip this check now, option to filter provided later
+        # self._check_same_peptide_lengths() 
+
+        if 'ha__allele' in pep_df.columns:
+            self.format_allele_names() # TO DO: E.g.: HLA*A01:01  -> A0101; might be good to save an output file with the name changes that we made -> Logger
+            self._check_alleles()      # TO DO: supported pre-processed alleles vs alleles provided as sequence... 
+
+
+        # SISI - sub below with the pep_encoder and hla_encoder class. something like...:
+        # self.encoded_peptides: List[Tensor] = PepEncoder.encode(self.peptides)
+        # self.encoded_alleles: List[Tensor] = HLAEncoder.encode(pep_df['ha__allele'])
+
+        # Init peptide features dataframe
+        # self.peptide_feats_df = self.pep_df[['ha__pep'] + feat_cols].copy()
+        # self.peptide_feats_df.drop(columns='ha__pep', inplace=True)    # hmm why?, is it because we are making features?
+        # self.peptide_features_dim = len(list(self.peptide_feats_df.columns))
+        #
+        # if self.peptide_features_dim:
+        #    print()
+        #    print(f'Peptide set features: {list(self.peptide_feats_df.columns)}')
+        #    print(self.peptide_feats_df.describe())
+        #    print()
+        #
+        #self.aa_feature_map: AminoAcidFeatureMap = AminoAcidFeatureMap(featurefiles=aa_featurefiles)
+        # self.feature_dimensions: int = (self.aa_feature_map.feature_count * self.peptide_length) \
+        #                               + self.peptide_features_dim
+
+        # From: get_aa_encoded_peptide_map() - TO DO - ADD BACK THE peptide-level features
+        #if self.peptide_features_dim:
+        #    peps_aafeatmat = pd.concat(
+        #        [peps_aafeatmat, self.peptide_feats_df], axis=1)
+        ## TO DO: separate out aa encoding and peptide encoding
+        ## TO DO: keep peps and pep fts in same df
 
     def __len__(self) -> int:
-        return len(self.peptides)
+        return self.pep_df.shape[0]
 
-
+    # TO DO SISI - does this work if only one thing is retured but the -> says tuple?
     def __getitem__(self, idx) -> Tuple[Tensor, float]:
-        if self.binds is None:
+        if not 'ha__target' in self.pep_df.columns:
             return self.encoded_peptides[idx]
         else:
-            return self.encoded_peptides[idx], self.binds[idx]
-
-
-    def _set_peptide_length(self) -> None:
-        """
-        Set peptide length if peptides are valid sequences & are all the same length
-        """
-        pep_len = None
-        try:
-            self._check_valid_lengths()
-            self._check_peps_present()
-            self._check_valid_sequences()
-            pep_len = len(self.peptides[0])
-            assert(all(len(pep)==pep_len for pep in self.peptides))
-            
-        except AssertionError:
-            print("Peptides are different lengths. Peptide lengths must be equal.")
+            return self.encoded_peptides[idx], self.pep_df['ha__target'][idx]
         
-        return pep_len
-        
+    def get_peptide_list(self) -> List[str]:
+        return self.pep_df['ha__pep'].values
 
+    def get_pep_lengths(self) -> List[int]:
+        return np.unique(self.pep_df['ha__pep_len'])
     
-    def _check_valid_lengths(self) -> None:
-        """Check that all peptides are the same length
-        """
-        if len(self.peptides) > 0:
-            pep_len = len(self.peptides[0])
-            assert(all(len(pep)==pep_len for pep in self.peptides))
-
+    def get_alleles(self) -> List[str]:
+        if 'ha__allele' in self.pep_df.columns:
+            return np.unique(self.pep_df['ha__allele'])
+        else: 
+            return None
+        
     def _check_peps_present(self) -> None:
-        """Check that there are peptides in the peptide set
+        """
+        Check that there are peptides in the peptide set
 
         Raises:
             Exception: No peptide sequences provided
         """
-        if not len(self.peptides) > 0:
+        if not len(self) > 0:
             raise Exception("No peptide sequences provided")
 
     def _check_valid_sequences(self) -> None:
-        """Check that the peptide is composed of valid amino acids
         """
-        for pep in self._split_peptides():
-            for aa in pep:
-                assert aa in AMINO_ACIDS
-                
+        Check that peptides are composed of the standard 20 amino acids
+        """
+        try:
+            for pep in self._split_peptides():
+                for aa in pep:
+                    assert aa in AMINO_ACIDS
+        except AssertionError:
+             print("Peptides sequences contain invalid characters. \
+                   Please ensure peptides sequences only contain the 20 standard amino acid symbols.") 
+
     def _split_peptides(self) -> List[List[str]]:
-        """Split peptides into list of list of amino acids
         """
-        return [list(seq) for seq in self.peptides]
+        Split peptides into list of list of amino acids
+        """
+        return [list(pep) for pep in self.get_peptide_list()]
+
+    def _check_supported_peptide_lengths(self) -> None:
+        """
+        Check that peptide lengths are valid lengths
+        """
+        try:
+            # TO DO - PEP_LENS should be a bit more informative, e.g. those would be the lengths supported for prediction but other tasks can use longer peptides too..
+            assert all(pep_len in PEP_LENS for pep_len in self.get_pep_lengths())
+
+        except AssertionError:
+            print("Peptides lengths are not in the allowed range (8-12).")
+
+    def _check_same_peptide_lengths(self) -> None:
+        """
+        Check that all peptides are the same length
+        """
+        assert len(self.get_pep_lengths()) == 1, f"Peptides of multiple lengths are present in the dataset: {self.get_pep_lengths()}"
+
     
-
-    def _encode_peptides(self) -> List[Tensor]:
-        """Return featurized peptides
+    # TO DO: we should also check if the alleles are valid (format names and and/or look at the full sequence is provided)    
+    def _check_alleles(self) -> None:
+        pass
         
-        Returns:
-            List[Tensor]: featurized peptide tensors
-        """
-        encoding_map: pd.DataFrame = self.get_aa_encoded_peptide_map()
-        encoded = []
+    # TO DO: similarly to the Terra workflow, add some code to standardize allele names; Perhaps this belongs in a generic 'tools' .py
+    def format_allele_names(self) -> None:
+        pass
 
-        # TODO: is there a simpler way of creating tensors.. pytorch lightning?
-        for i in range(len(self.peptides)):
-            encoded_peptide: Tensor = torch.as_tensor(encoding_map.iloc[i].values).float()
-            encoded.append(encoded_peptide)
-        return encoded
-
-
-    def encode_onehot(self) -> np.ndarray:
-        """One hot encode peptides
-
-        Returns:
-            np.ndarray: one hot encoded peptide set
-        """
-        ### Peptide encoding
-        peps_split = self._split_peptides()
-        encoder = sklearn.preprocessing.OneHotEncoder(
-            categories=[AMINO_ACIDS] * self.peptide_length)
-        encoder.fit(peps_split)
-        encoded = encoder.transform(peps_split).toarray()
-        return encoded
-
-
-    def get_aa_encoded_peptide_map(self) -> pd.DataFrame:
-        """
-        Returns:
-            pd.DataFrame: Amino acid featurization of peptides in the class
-        """
-        onehot_encoded: np.ndarray = self.encode_onehot()
-
-        onehot_only = not self.aa_feature_map.feature_files
-
-        if onehot_only:
-            peps_aafeatmat: pd.DataFrame = pd.DataFrame(onehot_encoded, index=self.peptides)
-        else:
-            aamap = self.aa_feature_map.feature_map
-            # Block diagonal aafeatmat
-            aafeatmat_bd: np.ndarray = np.kron(np.eye(self.peptide_length, dtype=int), aamap)
-            # Feature encoding (@ matrix multiplication)
-            feat_names: List[List[str]] = list(np.concatenate( \
-                                          [(f'p{i+1}_' + aamap.columns.values).tolist() \
-                                                for i in range(self.peptide_length)]).flat)
-            peps_aafeatmat: pd.DataFrame = pd.DataFrame(onehot_encoded @ aafeatmat_bd, \
-                                                        columns=feat_names, \
-                                                        index=self.peptides)
-
-        if self.peptide_features_dim:
-            peps_aafeatmat = pd.concat([peps_aafeatmat, self.peptide_feats_df], axis=1)
-# TODO: separate out aa encoding and peptide encoding
-# TODO: keep peps and pep fts in same df
-        return peps_aafeatmat
-
-
-    def decode_peptide(self, encoded: Tensor) -> List[str]:
-        """Decode peptide tensor and return peptide
+    def subset_data(
+            self,
+            peplens: Optional[Union[int, List[int], str, List[str]]] = None,
+            alleles: Optional[Union[str, List[str]]] = None,
+            reset_index: Optional[bool] = False
+            ) -> None:
+        """ Subset the peptide dataset to specified alleles and lengths.
 
         Args:
-            encoded (Tensor): encoded peptide
-
-        Returns:
-            str: decoded peptide
+            peplens: int or List[int], optional, default: None
+                length of peptides to include in dataset
+            allele:  str or List[str], optional, default: None 
+                name of allele to include in dataset 
+                based on entries in `allele` column of pep_df 
+                (`allele` column only required if this parameter is specified)
         """
-        if self.peptide_features_dim > 0:
-            encoded = encoded[:-self.peptide_features_dim]
+        # Filter to specified peptide length(s) if any
+        if peplens != None:
+            if not is_list_like(peplens):
+                peplens = [peplens]
+            self.pep_df = self.pep_df[self.pep_df['ha__pep_len'].isin(peplens)]
 
-        encoded = encoded.reshape(self.peptide_length, self.aa_feature_map.feature_count)
-        dense = encoded.argmax(-1)
-        if len(dense.shape) > 1:
-            peptide = [''.join([INVERSE_AA_MAP[aa.item()] for aa in p]) for p in dense]
-        else:
-            peptide = ''.join([INVERSE_AA_MAP[aa.item()] for aa in dense])
-        return peptide
-    
-      
+
+        # Filter to specified allele(s) if any
+        if alleles != None:
+            if not 'ha__allele' in self.pep_df.columns:
+                # TO DO: warning message that there is no allele column in the dataset to subset on
+                pass
+            else:
+                if not is_list_like(alleles):
+                    alleles = [alleles]
+                self.pep_df = self.pep_df[self.pep_df['ha__allele'].isin(alleles)]
+
+        if reset_index:
+            self.pep_df.reset_index()

@@ -1,5 +1,8 @@
 import pandas as pd 
 
+# List of supported peptide lengths
+PEP_LENS = [8, 9, 10, 11, 12]
+
 # List of amino acid symbols
 AMINO_ACIDS = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
 

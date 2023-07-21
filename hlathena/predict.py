@@ -8,7 +8,10 @@ from hlathena.peptide_nn import PeptideNN
 from hlathena.peptide_dataset import PeptideDataset
 
 
-def predict(model_path: os.PathLike, peptides: List[str], dropout_rate: float = 0.1, replicates: int = 1):
+def predict(model_path: os.PathLike, 
+            peptides: List[str], 
+            dropout_rate: float = 0.1, 
+            replicates: int = 1):
     """
     Predict the scores of the given peptides using a saved PyTorch model.
 
@@ -30,7 +33,7 @@ def predict(model_path: os.PathLike, peptides: List[str], dropout_rate: float = 
         raise IndexError("No peptides submitted for prediction")
     
     # Determine device to use (GPU or CPU)
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    device = "cpu" # torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu") # SISI: error here mismatched devices need to address
     
     # Reformat peptides as dataframe to be used as input to PeptideDataset
     pep_df = pd.DataFrame(peptides, columns=['seq'])
@@ -44,9 +47,9 @@ def predict(model_path: os.PathLike, peptides: List[str], dropout_rate: float = 
 
     input_lst, predictions_lst = [], []
     with torch.no_grad():
-        for _, data in enumerate(peptide_data, 0):
+        for _, data in enumerate(peptide_data):
             inputs = data.to(torch.float).to(device)
-            inputs = torch.reshape(inputs, (1,-1))
+            inputs = torch.reshape(inputs, (1,-1)).to(device)
             input_lst.append(inputs)
             model(inputs)
             predictions = torch.zeros(inputs.shape[0], replicates)
