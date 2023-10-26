@@ -13,12 +13,16 @@ import matplotlib.patches as mpatches
 from matplotlib.colors import ListedColormap
 
 from hlathena.definitions import AMINO_ACIDS
-
+from hlathena.peptide_dataset import PeptideDataset
 
 markers = list(plt.Line2D.filled_markers)
 
 
-def plot_length(pep_df: pd.DataFrame, pep_col: str = 'seq', label_col: str = None) -> None:
+
+# SISI - we should have a version for this plotting function that takes in the peptide dataset class as well
+def plot_length(pep_df: pd.DataFrame, 
+                pep_col: str = 'seq', 
+                label_col: str = None) -> None:
     """Plot the distribution of peptide lengths.
 
     Args:
@@ -47,7 +51,10 @@ def plot_length(pep_df: pd.DataFrame, pep_col: str = 'seq', label_col: str = Non
         
 
     
-def plot_logo(pep_df: pd.DataFrame, length: int = None, pep_col: str = 'seq', label_col: str = None) -> None:
+def plot_logo(pep_df: pd.DataFrame, 
+              length: int = None, 
+              pep_col: str = 'seq', 
+              label_col: str = None) -> None:
     """Plot the sequence logo for a given allele and peptide length.
 
     Args:
@@ -87,9 +94,7 @@ def plot_logo(pep_df: pd.DataFrame, length: int = None, pep_col: str = 'seq', la
                 # peps = d[pep_col]
                 peps = [pp for pp in d[pep_col] if len(pp) == length]
                 logo_df = get_logo_df(peps, length)
-                logomaker.Logo(logo_df,
-                           ax=ax,                    
-                           show_spines=False);
+                logomaker.Logo(logo_df, ax=ax, show_spines=False);
                 ax.set_xticks([]);
                 ax.set_yticks([]);
                 ax.set_title(f'{label}, Length {length} (n={len(peps)})')
@@ -198,10 +203,10 @@ def get_logo_df(peptides: List[str], length: int):
 
 
 
-def plot_clustered_umap(umap_embedding_df: pd.DataFrame, \
-                        # label_df: pd.DataFrame = None, \
-                        label_col: str = None, \
-                        title: str=None, \
+def plot_clustered_umap(umap_embedding_df: pd.DataFrame,
+                        # label_df: pd.DataFrame = None,
+                        label_col: str = None,
+                        title: str=None,
                         save_path: str=None):   
     """Plot the  clustered UMAP for a given UMAP embedding dataframe. 
 

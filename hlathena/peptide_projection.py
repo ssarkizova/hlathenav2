@@ -1,24 +1,19 @@
 
 import logging
 import os
-import time
-from typing import List, Tuple
+from typing import List, Tuple, Union
+import importlib_resources
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import umap
-import sklearn.preprocessing
-import importlib_resources
 from sklearn.cluster import DBSCAN
 from collections import Counter
 
-
-
-from hlathena import data
 from hlathena.definitions import AMINO_ACIDS
 from hlathena.peptide_dataset import PeptideDataset
-
+from hlathena.amino_acid_feature_map import AminoAcidFeatureMap
+from hlathena.pep_encoder import PepEncoder
 
 def PCA_numpy_SVD(X, rowvar=False):
     """Computes the PCA of a matrix using SVD.
@@ -43,7 +38,9 @@ def PCA_numpy_SVD(X, rowvar=False):
     return evals, evecs, explained_variances
 
 
-def pep_pos_weight(encoded_pep_df: pd.DataFrame, pos_weights: List[float], aafeatmat: pd.DataFrame):
+def pep_pos_weight(encoded_pep_df: pd.DataFrame, 
+                   pos_weights: List[float], 
+                   aafeatmat: pd.DataFrame):
     """Weight amino acid features by position.
 
     Args:
@@ -54,19 +51,19 @@ def pep_pos_weight(encoded_pep_df: pd.DataFrame, pos_weights: List[float], aafea
     Returns:
         Encoded feature matrix weighted by position.
     """
-    num_feats_per_pos = aafeatmat.get_feature_count()
+    num_feats_per_pos = aafeatmat.get_aa_feature_count()
     peplen = int(encoded_pep_df.shape[1]/num_feats_per_pos)
     for i in range(peplen):
-        pos_cols = 'p{0}_'.format(i+1) + aafeatmat.feature_map.columns.values
+        pos_cols = 'p{0}_'.format(i+1) + aafeatmat.get_aa_feature_map().columns.values
         encoded_pep_df[pos_cols] = np.multiply(encoded_pep_df[pos_cols], pos_weights[i])
     return encoded_pep_df
 
 
-def PCA_encode(peptides: List[str], \
-               allele: str, \
-               peplen: int, \
-               aa_featurefiles: List[os.PathLike]=None, \
-               precomp_PCA_path: os.PathLike=None, \
+def PCA_encode(peptides: Union[List[str], PeptideDataset],
+               allele: str,
+               peplen: int,
+               aa_feature_map: AminoAcidFeatureMap,
+               precomp_PCA_path: os.PathLike=None,
                save_PCA_path: os.PathLike=None) -> pd.DataFrame:
     """Encodes peptides and performs PCA.
 
@@ -74,34 +71,31 @@ def PCA_encode(peptides: List[str], \
         peptides (List[str]): List of peptides to encode.
         allele (str): HLA allele.
         peplen (int): Length of peptides.
-        aa_featurefiles (List[os.PathLike], optional): List of paths to files containing amino acid features (default None).
+        #aa_featurefiles (List[os.PathLike], optional): List of paths to files containing amino acid features (default None).
+        aa_featuremap # TO DO
         precomp_PCA_path (str, optional): Path to precomputed PCA object (default None).
         save_PCA_path (str, optional): Path to save PCA object (default None).
 
     Returns:
         Encoded peptides with PCA applied.
     """
-    data = importlib_resources.files('hlathena').joinpath('data')
-    molecularEntropies_MS_file = data.joinpath(f'molecularEntropies_{str(peplen)}_MS.txt')
-    molecularEntropies_IEDB_file = data.joinpath(f'molecularEntropies_{str(peplen)}_IEDB.txt')
-    
-    pep_df = pd.DataFrame(peptides, columns=['seq'])
-    
-    peptide_dataset = PeptideDataset(pep_df, peplen=9, aa_featurefiles=aa_featurefiles)
-    
-    encoded_peptides = peptide_dataset.get_aa_encoded_peptide_map()
-    aa_featuremap = peptide_dataset.aa_feature_map
-    
-    
+
+    # Ensure valid sequences, identical lengths etc. by using a PeptideDataset object
+    if not isinstance(peptides,PeptideDataset):
+        peptides = PeptideDataset(peptides, allele)
+    peptides.subset_data(peplens=[peplen], alleles=[allele])
+    peptides = peptides.get_peptides()
+        
+    encoded_peptides = PepEncoder.get_encoded_peps(peptides, aa_feature_map)
+
     ###  Weight positions by entropy
-    molecularEntropies_MS = pd.read_csv(molecularEntropies_MS_file, sep=' ', header=0)
-    molecularEntropies_IEDB = pd.read_csv(molecularEntropies_IEDB_file, sep=' ', header=0)
-    molecularEntropies_MS_IEDB = (molecularEntropies_MS + molecularEntropies_IEDB)/2
-    
+    data = importlib_resources.files('hlathena').joinpath('data/motif_entropies')
+    motifEntropies_file = data.joinpath(f'motifEntropies_{str(peplen)}_MS_IEDB.txt')
+    motifEntropies = pd.read_csv(motifEntropies_file, sep=' ', header=0)
     # Average of the allele-specific and pan-allele entropies so we don't miss plausible anchors/subanchors
-    pos_weights = (((1-molecularEntropies_MS_IEDB.loc[allele,:]) + (1-molecularEntropies_MS_IEDB.loc['Avg',:]))/2).tolist()
-    
-    encoded_peps_wE = pep_pos_weight(encoded_peptides, pos_weights, aa_featuremap)
+    pos_weights = (((1-motifEntropies.loc[allele,:]) + (1-motifEntropies.loc['Avg',:]))/2).tolist()
+
+    encoded_peps_wE = pep_pos_weight(encoded_peptides, pos_weights, aa_feature_map)
     if precomp_PCA_path != None:
         npz_tmp = np.load(precomp_PCA_path)
         evecs = npz_tmp['evecs']
@@ -117,6 +111,8 @@ def PCA_encode(peptides: List[str], \
         index=encoded_peps_wE.index, 
         columns=['PC{0}'.format(i) for i in range(len(evecs))])    
     
+    peps_wE_pca_nocenter_df.index = peptides
+
     return peps_wE_pca_nocenter_df
 
 
@@ -138,14 +134,14 @@ def get_umap_embedding(feature_matrix: pd.DataFrame, \
 
     """
     # UMAP embedding
-    umap_transform = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist, random_state=random_state).fit(feature_matrix)
-    # the hits, i.e. identical to above but here as an example how to embed new data
-    umap_embedding_hits = umap_transform.transform(feature_matrix) 
-    hits_peps = feature_matrix.index.values
-
-    umap_embedding_df = pd.DataFrame(np.column_stack(
-                                        (hits_peps, umap_embedding_hits)), 
-                                        columns=['seq','d1','d2'])
+    umap_transform = umap.UMAP(n_neighbors=n_neighbors, 
+                               min_dist=min_dist, 
+                               random_state=random_state).fit(feature_matrix)
+    # the hits, i.e. identical to above but here as an example how to embed new data - TO DO CHECK
+    umap_embedding = umap_transform.transform(feature_matrix)     
+    umap_embedding_df = pd.DataFrame(
+        np.column_stack((feature_matrix.index.values, umap_embedding)), 
+        columns=['pep','umap_1','umap_2'])
     
     return umap_embedding_df
 
@@ -166,7 +162,7 @@ def get_peptide_clustering(umap_embedding: pd.DataFrame,
 
     """
     
-    subclust = DBSCAN(eps=eps, min_samples=min_samples).fit(umap_embedding.loc[:,['d1','d2']])
+    subclust = DBSCAN(eps=eps, min_samples=min_samples).fit(umap_embedding.loc[:,['umap_1','umap_2']])
     subclust_freqs = Counter(subclust.labels_)
     nclust = len(np.unique(subclust.labels_))
     ci_order_by_size = subclust_freqs.most_common()
@@ -175,8 +171,7 @@ def get_peptide_clustering(umap_embedding: pd.DataFrame,
     size_map_dict = dict(zip([ci[0] for ci in ci_order_by_size], range(nclust)))
 
     umap_embedding['cluster'] = pd.Series(
-                                             pd.Series(subclust.labels_).map(size_map_dict), 
-                                             index=umap_embedding.index)
+        pd.Series(subclust.labels_).map(size_map_dict), 
+        index=umap_embedding.index)
 
     return umap_embedding
-                           
