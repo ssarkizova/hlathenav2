@@ -140,7 +140,7 @@ def plot_umap(umap_embedding_df: pd.DataFrame,
     """Plot the UMAP for a given UMAP embedding dataframe. 
 
     Args:
-        umap_embedding_df (pd.DataFrame): A dataframe with the UMAP features. Columns 'seq' (peptide sequences),'d1', and 'd2' are expected.
+        umap_embedding_df (pd.DataFrame): A dataframe with the UMAP features. Columns 'seq' (peptide sequences),'umap_1', and 'umap_2' are expected.
         clustered (bool, optional):       Indicates whether UMAP embedding has a 'cluster' column. Default is false.
         label_col (str, optional):        The name of a column denoting the peptide category for comparison. Default value is None, in which case no category comparison will be performed.
         title (str, optional):            Optional plot title, defaults to None.
@@ -158,19 +158,19 @@ def plot_umap(umap_embedding_df: pd.DataFrame,
         
         if not label_col is None:
             for i, (label, d) in enumerate(umap_embedding_df.groupby(label_col)):
-                ax.scatter(d.loc[:, 'd1'], 
-                        d.loc[:, 'd2'], 
+                ax.scatter(d.loc[:, 'umap_1'], 
+                        d.loc[:, 'umap_2'], 
                         s=40, facecolors='none', edgecolors='black', linewidths=0.5,
                         marker=markers[i], label = label)
                 ax.legend()
 
         else:
-            ax.scatter(umap_embedding_df.loc[:, 'd1'], 
-                        umap_embedding_df.loc[:, 'd2'], 
+            ax.scatter(umap_embedding_df.loc[:, 'umap_1'], 
+                        umap_embedding_df.loc[:, 'umap_2'], 
                         s=40, facecolors='none', edgecolors='black', linewidths=0.5, alpha=0.75)
     
-        plt.xlabel('umap1', fontsize=15)
-        plt.ylabel('umap2', fontsize=15)
+        plt.xlabel('umap_1', fontsize=15)
+        plt.ylabel('umap_2', fontsize=15)
         plt.axis('equal')
     
         if title != None:
@@ -211,7 +211,7 @@ def plot_clustered_umap(umap_embedding_df: pd.DataFrame,
     """Plot the  clustered UMAP for a given UMAP embedding dataframe. 
 
     Args:
-        umap_embedding_df (pd.DataFrame): A dataframe with the UMAP features. Columns 'seq', 'd1', 'd2', and 'cluster' are expected.
+        umap_embedding_df (pd.DataFrame): A dataframe with the UMAP features. Columns 'seq', 'umap_1', 'umap_2', and 'cluster' are expected.
         label_col (str, optional):        The name of a column denoting the peptide category for comparison. Default value is None, in which case no category comparison will be performed.
         title (str, optional):            Optional plot title, defaults to None.
         save_path (str, optional):        Path where that figure will be saved to. Optional, default is None.
@@ -228,8 +228,8 @@ def plot_clustered_umap(umap_embedding_df: pd.DataFrame,
     fig, (ax0, ax1) = plt.subplots(1,2, figsize=(10,8), gridspec_kw={'width_ratios': [4, 1]})
     if not label_col is None:
         for i, (label, d) in enumerate(umap_embedding_df.groupby(label_col)):
-            ax0.scatter(d.loc[:, 'd1'], 
-                    d.loc[:, 'd2'], 
+            ax0.scatter(d.loc[:, 'umap_1'], 
+                    d.loc[:, 'umap_2'], 
                     s=40, facecolors='none', linewidths=0.5, 
                     edgecolors=cmap(d.loc[:, 'cluster']),
                     marker=markers[i], label=label)
@@ -237,16 +237,16 @@ def plot_clustered_umap(umap_embedding_df: pd.DataFrame,
         sns.countplot(data=umap_embedding_df, y='cluster', hue=label_col, ax=ax1)
         
     else:
-        ax0.scatter(umap_embedding_df.loc[:, 'd1'], 
-            umap_embedding_df.loc[:, 'd2'], 
+        ax0.scatter(umap_embedding_df.loc[:, 'umap_1'], 
+            umap_embedding_df.loc[:, 'umap_2'], 
             s=40, facecolors='none', linewidths=0.5, 
             edgecolors=cmap(umap_embedding_df.loc[:, 'cluster'])) 
         handles, labels = ax0.get_legend_handles_labels()
         
         sns.countplot(data=umap_embedding_df, y='cluster', ax=ax1, palette=sns_colors)
 
-    ax0.set_xlabel('umap1', fontsize=15)
-    ax0.set_ylabel('umap2', fontsize=15)
+    ax0.set_xlabel('umap_1', fontsize=15)
+    ax0.set_ylabel('umap_2', fontsize=15)
     
     clust_labels = [c for c in np.sort(umap_embedding_df['cluster'].unique())]
     clust_handles = [mpatches.Patch(color=cmap(c), label=c) for c in clust_labels]

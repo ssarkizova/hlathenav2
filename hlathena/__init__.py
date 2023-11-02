@@ -9,5 +9,6 @@ from hlathena.predict import predict
 from hlathena.annotate import list_tcga_expression_references, get_reference_gene_ids, add_tcga_expression
 from hlathena.peptide_dataset import PeptideDataset
 from hlathena.pep_encoder import PepEncoder
+from hlathena.amino_acid_feature_map import AminoAcidFeatureMap
 
 from hlathena.trainer import run_training

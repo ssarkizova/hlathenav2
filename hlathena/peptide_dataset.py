@@ -15,7 +15,7 @@ from Bio import SeqIO
 # import ahocorasick
 import importlib_resources
 
-from hlathena import references
+# from hlathena import references # cleo note: causing circular import error, need to remove or rearrange imports 
 from hlathena.definitions import AMINO_ACIDS
 from hlathena.definitions import PEP_LENS
 

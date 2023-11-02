@@ -20,7 +20,11 @@ setup(
         'scipy>=1.7.3',
         'umap-learn>=0.5.3',
         'scikit-learn>=1.0.2',
-        'matplotlib>=3.5.1'], # add req.txt
+        'matplotlib>=3.5.1',
+        'seaborn>=0.13.0',
+        'torch>=2.1.0',
+        'Bio>=1.6.0',
+        'pyahocorasick>=2.0.0'], # add req.txt
 
     classifiers=[
         'Development Status :: 1 - Planning',
@@ -30,7 +34,12 @@ setup(
         'Programming Language :: Python :: 3.7',
     ],
     include_package_data=True,
-    package_data={'': ['data/*']},
+        package_data={'': ['data/*', 
+                           'data/model_training/*', 
+                           'data/motif_entropies/*', 
+                           'data/projection_models/*',
+                           'references/*',
+                           'references/expression/*']},
 )
 
 

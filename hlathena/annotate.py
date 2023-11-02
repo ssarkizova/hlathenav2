@@ -5,7 +5,7 @@ from Bio import SeqIO
 import ahocorasick
 import importlib_resources
 
-from hlathena import references
+# from hlathena import references
 
 exp_references = importlib_resources.files('hlathena').joinpath('references').joinpath('expression')
 
