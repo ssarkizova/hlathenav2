@@ -43,7 +43,8 @@ class PepEncoder:
         encoder.fit(sequences)
         encoded = encoder.transform(sequences).toarray()
         return encoded
-
+    
+    
     @staticmethod
     def get_encoded_peps(sequences,
                          aafeatmat: AminoAcidFeatureMap=None) -> pd.DataFrame:
@@ -59,15 +60,14 @@ class PepEncoder:
         # Input peptide sequences need to be of the same length - TO DO - handle multiple lengths
         lens = [len(s) for s in sequences]
         pep_len = lens[0]
-        assert(all(l==pep_len for l in lens)) # how should we integrate error handling?
+        assert(all(l==pep_len for l in lens)) # TO DO: integrate error handling...
 
         onehot_encoded: np.ndarray = PepEncoder.encode_onehot(sequences, pep_len)
 
         onehot_only = not aafeatmat
 
         if onehot_only:
-            peps_aafeatmat: pd.DataFrame = pd.DataFrame(
-                onehot_encoded) #, index=self.peptides)  # SISI - TO DO index on peps needed...?
+            peps_enc = pd.DataFrame(onehot_encoded) #, index=self.peptides)  # SISI - TO DO index on peps needed...?
         else:
             aamap = aafeatmat.aa_feature_map
             # Block diagonal aafeatmat
@@ -77,11 +77,11 @@ class PepEncoder:
             feat_names: List[List[str]] = list(np.concatenate(
                 [(f'p{i+1}_' + aamap.columns.values).tolist()
                  for i in range(pep_len)]).flat)
-            peps_aafeatmat: pd.DataFrame = pd.DataFrame(onehot_encoded @ aafeatmat_bd,
-                                                        columns=feat_names) #,
-                                                        #index=self.peptides)  # SISI - TO DO index on peps needed...?
+            peps_enc = pd.DataFrame(onehot_encoded @ aafeatmat_bd,
+                                    columns=feat_names) #,
+                                    #index=self.peptides)  # SISI - TO DO index on peps needed...?
 
-        return peps_aafeatmat
+        return peps_enc
 
 
     # TO DO - needs to be edited from where this code was some vars are not avalable here
@@ -94,11 +94,13 @@ class PepEncoder:
         Returns:
             str: decoded peptide
         """
-        if self.peptide_features_dim > 0:
-            encoded = encoded[:-self.peptide_features_dim]
+        
+        #if self.peptide_features_dim > 0:
+        #    encoded = encoded[:-self.peptide_features_dim]
 
         encoded = encoded.reshape(
-            self.peptide_length, self.aa_feature_map.feature_count)
+            #self.peptide_length, self.aa_feature_map.feature_count)
+            -1, len(AMINO_ACIDS)) # TO DO: dims for anything other than onehot?
         dense = encoded.argmax(-1)
         if len(dense.shape) > 1:
             peptide = [''.join([INVERSE_AA_MAP[aa.item()]
@@ -120,7 +122,7 @@ class PepEncoder:
         
         # TO DO: is there a more elegant way of creating tensors?...
         encoded_tensors = []
-        for i in range(len(sequences.peptides)):
+        for i in range(len(sequences)):
             encoded_peptide: Tensor = torch.as_tensor(encoded.iloc[i].values).float()
             encoded_tensors.append(encoded_peptide)
         return encoded_tensors

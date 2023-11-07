@@ -8,7 +8,12 @@ from hlathena.peptide_nn import PeptideNN
 from hlathena.peptide_dataset import PeptideDataset
 
 
-def predict(model_path: os.PathLike, peptides: List[str], dropout_rate: float = 0.1, replicates: int = 1):
+def predict(
+    model_path: os.PathLike, 
+    peptides: List[str], 
+    dropout_rate: float = 0.1, 
+    replicates: int = 1):
+
     """
     Predict the scores of the given peptides using a saved PyTorch model.
 
@@ -34,20 +39,22 @@ def predict(model_path: os.PathLike, peptides: List[str], dropout_rate: float = 
     
     # Reformat peptides as dataframe to be used as input to PeptideDataset
     pep_df = pd.DataFrame(peptides, columns=['seq'])
-    peptide_data = PeptideDataset(pep_df)
+    peptide_data = PeptideDataset(pep_df, encode=True)
+    print(f'peptide_data.feature_dimensions {peptide_data.feature_dimensions}')
     
     # Load the saved model
     model = PeptideNN(peptide_data.feature_dimensions, dropout_rate)
-
+    model = model.to(device)
     model.load_state_dict(torch.load(model_path)['model_state_dict'])
     model.eval()
 
     input_lst, predictions_lst = [], []
     with torch.no_grad():
         for _, data in enumerate(peptide_data, 0):
-            inputs = data.to(torch.float).to(device)
+            inputs = data.to(torch.float)
             inputs = torch.reshape(inputs, (1,-1))
             input_lst.append(inputs)
+            inputs = inputs.to(device)
             model(inputs)
             predictions = torch.zeros(inputs.shape[0], replicates)
             for j in range(0,replicates):

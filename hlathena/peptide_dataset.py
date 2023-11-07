@@ -11,13 +11,13 @@ import torch
 from torch import Tensor
 from torch.utils.data import Dataset
 
-from Bio import SeqIO
-# import ahocorasick
 import importlib_resources
 
 # from hlathena import references # cleo note: causing circular import error, need to remove or rearrange imports 
 from hlathena.definitions import AMINO_ACIDS
+from hlathena.definitions import INVERSE_AA_MAP
 from hlathena.definitions import PEP_LENS
+from hlathena.pep_encoder import PepEncoder
 
 ## TO DO - check if the the output signatures are well defined... e.g. can None pass for a List[str]?
 
@@ -44,7 +44,8 @@ class PeptideDataset(Dataset):
         allele_name: Optional[str] = None,
         pep_col_name: Optional[str] = 'pep',
         allele_col_name: Optional[str] = None,        
-        target_col_name: Optional[str] = None) -> None: # SISI: label_col or lavel_value? this can also be a single number? 1 or 0        
+        target_col_name: Optional[str] = None, # TO DO: target_col or target_value, also support this to be single number 1 or 0?
+        encode: Optional[bool] = False) -> None: 
         """ Inits a peptide dataset which featurizes the hit and decoy peptides.
 
         Args:
@@ -53,7 +54,7 @@ class PeptideDataset(Dataset):
             label_col (str, optional): name of column containing target labels (default is None)
             aa_featurefiles (List[os.PathLike], optional): list of feature matrix files (default one-hot encoding)
             feat_cols (List[str], optional): list of columns in the input dataframe (pep_df) 
-                                             which are to be interpreted as peptide features for prediction purposees (e.g. 'TPM')
+                                             which are to be interpreted as peptide features for training/prediction purposees (e.g. 'TPM')
         """
         super().__init__()
         
@@ -80,7 +81,8 @@ class PeptideDataset(Dataset):
                 raise KeyError(f"Column {target_col_name} does not exist!")
 
 
-        ### TO DO - add a check to make sure that the 'reserved' column names we will be adding are not present in the dataframe
+        ### TO DO - add a check to make sure that the 'reserved' column names we will be adding 
+        ### are not present in the dataframe with some user-specific values
 
         # Add standard columns for peptide, peptide length, and optionally allele
         if not 'ha__pep' in pep_df.columns:
@@ -122,7 +124,8 @@ class PeptideDataset(Dataset):
         self._check_peps_present()
         self._check_valid_sequences()
 
-        # TO DO: We want to be able to keep the longer peptides so that we can plot the length distribution and maybe for other analyses as well. Skip this check now, option to filter provided later
+        # TO DO: We want to be able to keep the longer peptides so that we can plot the length distribution 
+        # and maybe for other analyses as well. Skip this check now, option to filter provided later
         # self._check_same_peptide_lengths() 
 
         if 'ha__allele' in pep_df.columns:
@@ -131,9 +134,10 @@ class PeptideDataset(Dataset):
 
 
         # SISI - sub below with the pep_encoder and hla_encoder class. something like...:
-        # self.encoded_peptides: List[Tensor] = PepEncoder.encode(self.peptides)
-        # self.encoded_alleles: List[Tensor] = HLAEncoder.encode(pep_df['ha__allele'])
-
+        if encode:
+            self.encoded_peptides: List[Tensor] = PepEncoder._encode_peptides(self.pep_df['ha__pep'].values)
+            # self.encoded_alleles: List[Tensor] = HLAEncoder.encode(pep_df['ha__allele'])
+            self.feature_dimensions = len(AMINO_ACIDS)*self.pep_df['ha__pep_len'][0] # TO DO harcoded for one-hot only, need to get the proper dims from aafeatmap
         # Init peptide features dataframe
         # self.peptide_feats_df = self.pep_df[['ha__pep'] + feat_cols].copy()
         # self.peptide_feats_df.drop(columns='ha__pep', inplace=True)    # hmm why?, is it because we are making features?
@@ -159,7 +163,7 @@ class PeptideDataset(Dataset):
     def __len__(self) -> int:
         return self.pep_df.shape[0]
 
-    # TO DO SISI - does this work if only one thing is retured but the -> says tuple?
+    # TO DO - does the output spec work if only one thing is retured but the -> says tuple?
     def __getitem__(self, idx) -> Tuple[Tensor, float]:
         if not 'ha__target' in self.pep_df.columns:
             return self.encoded_peptides[idx]
@@ -284,3 +288,30 @@ class PeptideDataset(Dataset):
 
         if reset_index:
             self.pep_df.reset_index()
+    
+        
+    # TO DO - keep here or in PepEncoder?? Also edit hard coded values!
+    def decode_peptide(self, encoded: Tensor) -> List[str]:
+        """Decode peptide tensor and return peptide
+        
+        Args:
+            encoded (Tensor): encoded peptide
+        
+        Returns:
+            str: decoded peptide
+        """
+        
+        # TO DO - add this back to accomodate for peptide-level features
+        #if self.peptide_features_dim > 0:
+        #    encoded = encoded[:-self.peptide_features_dim]
+        
+        encoded = encoded.reshape(
+            #self.peptide_length, self.aa_feature_map.feature_count)
+            9, 20)
+        dense = encoded.argmax(-1)
+        if len(dense.shape) > 1:
+            peptide = [''.join([INVERSE_AA_MAP[aa.item()]
+                               for aa in p]) for p in dense]
+        else:
+            peptide = ''.join([INVERSE_AA_MAP[aa.item()] for aa in dense])
+        return peptide

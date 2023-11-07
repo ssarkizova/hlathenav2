@@ -1,7 +1,7 @@
 
 import logging
 import os
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 import importlib_resources
 
 import numpy as np
@@ -10,7 +10,7 @@ import umap
 from sklearn.cluster import DBSCAN
 from collections import Counter
 
-from hlathena.definitions import AMINO_ACIDS
+from hlathena.definitions import AMINO_ACIDS, aa_feature_file_Kidera
 from hlathena.peptide_dataset import PeptideDataset
 from hlathena.amino_acid_feature_map import AminoAcidFeatureMap
 from hlathena.pep_encoder import PepEncoder
@@ -59,10 +59,10 @@ def pep_pos_weight(encoded_pep_df: pd.DataFrame,
     return encoded_pep_df
 
 
-def PCA_encode(peptides: Union[List[str], PeptideDataset],
-               allele: str,
-               peplen: int,
-               aa_feature_map: AminoAcidFeatureMap,
+def PCA_encode(peptides: Union[List[str], PeptideDataset],               
+               peplen: int, # TO DO: enable projection for mixed-length peptide input
+               allele: Optional[str]=None,
+               aa_feature_map: AminoAcidFeatureMap=None,
                precomp_PCA_path: os.PathLike=None,
                save_PCA_path: os.PathLike=None) -> pd.DataFrame:
     """Encodes peptides and performs PCA.
@@ -86,15 +86,22 @@ def PCA_encode(peptides: Union[List[str], PeptideDataset],
     peptides.subset_data(peplens=[peplen], alleles=[allele])
     peptides = peptides.get_peptides()
         
+    if aa_feature_map is None:
+        aa_feature_map = AminoAcidFeatureMap(aa_feature_files=[aa_feature_file_Kidera])
+    
     encoded_peptides = PepEncoder.get_encoded_peps(peptides, aa_feature_map)
 
     ###  Weight positions by entropy
     data = importlib_resources.files('hlathena').joinpath('data').joinpath('motif_entropies')
     motifEntropies_file = data.joinpath(f'motifEntropies_{str(peplen)}_MS_IEDB.txt')
-    motifEntropies = pd.read_csv(motifEntropies_file, sep=' ', header=0)
-    # Average of the allele-specific and pan-allele entropies so we don't miss plausible anchors/subanchors
-    pos_weights = (((1-motifEntropies.loc[allele,:]) + (1-motifEntropies.loc['Avg',:]))/2).tolist()
-
+    motifEntropies = pd.read_csv(motifEntropies_file, sep=' ', header=0)    
+    if not allele is None:
+        # Average of the allele-specific and pan-allele entropies so we don't miss plausible anchors/subanchors
+        pos_weights = (((1-motifEntropies.loc[allele,:]) + (1-motifEntropies.loc['Avg',:]))/2).tolist()
+    else:
+        # Average of pan-allele entropies
+        pos_weights = (1-motifEntropies.loc['Avg',:]).tolist()
+    
     encoded_peps_wE = pep_pos_weight(encoded_peptides, pos_weights, aa_feature_map)
     if precomp_PCA_path != None:
         npz_tmp = np.load(precomp_PCA_path)
@@ -117,9 +124,9 @@ def PCA_encode(peptides: Union[List[str], PeptideDataset],
 
 
 def get_umap_embedding(feature_matrix: pd.DataFrame, \
-                        n_neighbors: int = 5, \
-                        min_dist: float = 0.5, \
-                        random_state: int = 42):
+                       n_neighbors: int = 5, \
+                       min_dist: float = 0.5, \
+                       random_state: int = 42):
     """Create UMAP embedding dataframe for peptides.
 
     Args:
