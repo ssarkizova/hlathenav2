@@ -8,6 +8,7 @@ from hlathena.peptide_projection import PCA_encode, get_umap_embedding, get_pept
 from hlathena.predict import predict
 from hlathena.annotate import list_tcga_expression_references, get_reference_gene_ids, add_tcga_expression
 from hlathena.peptide_dataset import PeptideDataset
+from hlathena.peptide_dataset_train import PeptideDatasetTrain
 from hlathena.pep_encoder import PepEncoder
 from hlathena.amino_acid_feature_map import AminoAcidFeatureMap
 
