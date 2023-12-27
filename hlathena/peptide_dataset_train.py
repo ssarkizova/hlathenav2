@@ -55,9 +55,10 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
                          allele_name=allele_name, 
                          allele_col_name=allele_col_name)
         
+        # TODO: check if target col is there, otherwise raise error
         if target_col_name is None:
             raise AttributeError("Missing parameter target_col_name for PepHLADataset init")
-        else:
+        else: # TODO: remove
             if not 'ha__target' in pep_df.columns:
                 self.pep_df.insert(
                         loc=2,
@@ -66,6 +67,7 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
                 
         self.pep_len = self._set_peptide_length()
         
+        # TODO: add a check to make sure the columns are present
         self.peptide_feature_cols = [] if feat_cols is None else feat_cols
         
         self.PepHLAEncoder = PepHLAEncoder(self.pep_len, aa_feature_files=aa_feature_files)
@@ -113,7 +115,7 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
         np.random.seed(seed)
         train_idxs = [i for i,f in enumerate(self.folds()) if f!=fold]
         
-        decoy_train_idxs, hit_train_idxs = [i for i in train_idxs if self.binds[i]==0], [i for i in train_idxs if self.binds[i]==1]
+        decoy_train_idxs, hit_train_idxs = [i for i in train_idxs if self.pep_df.at[i,'ha__target']==0], [i for i in train_idxs if self.pep_df.at[i,'ha__target']==1]
         decoy_train_idxs = np.random.choice(decoy_train_idxs, len(hit_train_idxs)*decoy_mul, replace=True)
         
         print(f"Resampling hits: {resampling_hits}")
@@ -126,7 +128,7 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
     def get_test_idxs(self, fold: int, decoy_ratio: int = 1, seed: int = 1):
         np.random.seed(seed)
         test_idxs = [i for i,f in enumerate(self.folds()) if f==fold]
-        decoy_test_idxs, hit_test_idxs = [i for i in test_idxs if self.binds[i]==0], [i for i in test_idxs if self.binds[i]==1]
+        decoy_test_idxs, hit_test_idxs = [i for i in test_idxs if self.pep_df.at[i,'ha__target']==0], [i for i in test_idxs if self.pep_df.at[i,'ha__target']==1]
         decoy_test_idxs = np.random.choice(decoy_test_idxs, len(hit_test_idxs)*decoy_ratio, replace=True)
         
         return list(decoy_test_idxs) + list(hit_test_idxs)

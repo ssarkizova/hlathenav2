@@ -17,6 +17,7 @@ class PepHLAEncoder: # TODO: add support for no hla encoding, if none, just retu
     def __init__(self, 
                  pep_length: int,
                  aa_feature_files: List[os.PathLike] = None):
+        
         hla_encoding_file = importlib_resources.files('hlathena').joinpath('data').joinpath('hla_seqs_onehot.csv')
         self.hla_encoding = pd.read_csv(hla_encoding_file, index_col='mhc')
         self.pep_len = pep_length
@@ -26,7 +27,7 @@ class PepHLAEncoder: # TODO: add support for no hla encoding, if none, just retu
         
         self.pep_onehot_len = self.pep_len * len(AMINO_ACIDS)
         self.hla_onehot_len = len(self.hla_encoding.columns)
-        self.feature_dimensions = self.pep_onehot_len + self.hla_onehot_len
+        self.feature_dimensions = self.pep_onehot_len + self.hla_onehot_len # TODO: this is wrong...
     
 
     def encode_peptide(self, pep):

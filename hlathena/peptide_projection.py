@@ -95,6 +95,7 @@ def PCA_encode(peptides: Union[List[str], PeptideDataset],
     data = importlib_resources.files('hlathena').joinpath('data').joinpath('motif_entropies')
     motifEntropies_file = data.joinpath(f'motifEntropies_{str(peplen)}_MS_IEDB.txt')
     motifEntropies = pd.read_csv(motifEntropies_file, sep=' ', header=0)    
+    
     if not allele is None:
         # Average of the allele-specific and pan-allele entropies so we don't miss plausible anchors/subanchors
         pos_weights = (((1-motifEntropies.loc[allele,:]) + (1-motifEntropies.loc['Avg',:]))/2).tolist()
