@@ -1,0 +1,783 @@
+from typing import List, Dict
+from hlathena.peptide_dataset_train import PeptideDatasetTrain
+from hlathena import peptide_nn
+from hlathena.training_evaluation import TrainingEvaluation
+
+import torch.utils.data as torch_data
+import torch
+from torch import nn
+import pandas as pd
+import numpy as np
+import os
+import datetime
+import random
+import glob
+import argparse
+import logging
+
+
+def create_config_dict(device, epochs, lr, dr, batch_size, decoy_mul, eval_decoy_ratio, fold, aa_features, featname,
+                       pepfeats_dict, seed):
+    return {
+        'device': str(device),
+        'epochs': epochs,
+        'learning_rate': lr,
+        'batch_size': batch_size,
+        'dropout_rate': dr,
+        'decoy_mul': decoy_mul,
+        'eval_decoy_ratio': eval_decoy_ratio,
+        'fold #': fold,
+        'aa_feature_files': aa_features,
+        'feature_set_name': featname,
+        'feature_set_cols': pepfeats_dict[featname],
+        'all_feature_sets': pepfeats_dict,
+        'seed': seed
+    }
+
+
+def make_subdir(output_dir, subdir):
+    subdir_path = os.path.join(output_dir, subdir)
+    os.makedirs(subdir_path)
+    return subdir_path
+
+
+def make_output_dirs(output_dir, out_path):
+    dir_name = '-'.join([get_currtime(), out_path])
+    model_path = os.path.join(output_dir, dir_name)
+    os.makedirs(model_path)
+
+    models_dir = make_subdir(model_path, 'models')
+    configs_dir = make_subdir(model_path, 'configs')
+    eval_dir = make_subdir(model_path, 'eval')
+    return models_dir, configs_dir, eval_dir
+
+
+def get_currtime():
+    return str(datetime.datetime.strftime(datetime.datetime.now(), format='%m.%d.%Y-%I.%M.%S%p'))
+
+
+def get_aa_feature_files_from_dir(aa_dir):
+    # setting the path for joining multiple files
+    if (not os.path.isdir(aa_dir)):
+        return []
+    elif not len(os.listdir(aa_dir)):
+        logging.warning("Amino acid feature directory empty.")
+        return []
+
+    featurefiles = os.path.join(aa_dir, "*.txt")
+
+    # list of merged files returned
+    return glob.glob(featurefiles)
+
+
+def parse_feature_sets(set_file):
+    with open(set_file, 'r') as f:
+        featuresets = f.read().splitlines()
+        featureset_dict = {}
+        for s in featuresets:
+            name, cols = s.split(":")
+            cols = cols.split(",") if cols else []
+            featureset_dict[name] = cols
+    return featureset_dict
+
+
+def get_dedup_pep_df(df):
+    pep_grp = df.groupby("features")
+    results = []
+    index = []
+    for p, d in pep_grp:
+        r = [p] + list(d.mean(axis=0, numeric_only=True)) + list(d.std(axis=0, numeric_only=True))
+        results.append(r)
+        index.append(p)
+    return pd.DataFrame(results,
+                        columns=["features", "mean_auc", "mean_prauc", "mean_ppv", "std_auc", "std_prauc", "std_ppv"],
+                        index=index)
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(description='Run HLAthena training')
+
+    parser.add_argument("-t", "--train_file",
+                        help="peptide HLA train data file",
+                        required=True,
+                        type=str,
+                        action='store')
+    parser.add_argument("-v", "--val_file",
+                        help="peptide HLA validation data file",
+                        required=False,
+                        type=str,
+                        default=None,
+                        action='store')
+    parser.add_argument("-del", "--delimiter",
+                        help="training input file delimiter",
+                        required=False,
+                        type=str,
+                        default=',',
+                        action='store')
+    parser.add_argument("-pc", "--pep_col",
+                        help="specify peptide sequence column name for hits and decoys",
+                        type=str,
+                        default='pep',
+                        action='store')
+    parser.add_argument("-ac", "--allele_col",
+                        help="allele column name",
+                        type=str,
+                        default="",
+                        action='store')
+    parser.add_argument("-tc", "--target_col",
+                        help="target column name",
+                        type=str,
+                        action='store')
+    parser.add_argument("--fold_col",
+                        help="fold column name",
+                        type=str,
+                        default=None,
+                        action='store')
+    parser.add_argument("-f", "--folds",
+                        help="specify number of cross folds",
+                        type=int,
+                        default=5,
+                        action='store')
+    parser.add_argument("-e", "--epochs",
+                        type=int,
+                        default=10,
+                        action="store")
+    parser.add_argument("-lr", "--learning_rate",
+                        type=float,
+                        default=0.001,
+                        action="store")
+    parser.add_argument("-d", "--dropout_rate",
+                        type=float,
+                        default=0.1,
+                        action="store")
+    parser.add_argument("-b", "--batch_size",
+                        type=int,
+                        default=32,
+                        action="store")
+    parser.add_argument("-pr", "--pred_replicates",
+                        help="number of predictions per peptide for evaluation",
+                        type=int,
+                        default=100,
+                        action='store')
+    parser.add_argument("-dm", "--decoy_mul",
+                        help="training ratio of hits to decoys e.g. 2.0 means 1:2 ratio of hits:decoys",
+                        type=int,
+                        default=1,
+                        action='store')
+    parser.add_argument("-dr", "--decoy_ratio",
+                        help="testing ratio of hits to decoys e.g. 2.0 means 1:2 ratio of hits:decoys",
+                        type=int,
+                        default=1,
+                        action='store')
+    parser.add_argument("-rh", "--resampling_hits",
+                        action='store_true')
+    parser.add_argument("-af", "--assign_folds",
+                        type=bool,
+                        default=True)
+    parser.add_argument("--aa_feature_folder",
+                        help="comma-separated list of amino acid feature matrix files",
+                        type=str,
+                        default="",
+                        action='store')
+    parser.add_argument("--hla_encoding_file",
+                        help="comma-separated table of hla features for training",
+                        type=str,
+                        default=None,
+                        action='store')
+    parser.add_argument("-fc", "--feat_cols",
+                        help="peptide-level feature columns to train on e.g. 'exp;clev'",
+                        type=str,
+                        default="",
+                        action='store')
+    parser.add_argument("-fs", "--feat_sets",
+                        help="path to file containing feature combinations to run, one per row e.g. NAME:feat1,feat2",
+                        type=str,
+                        default="",
+                        action='store')
+    parser.add_argument("-r", "--repetitions",
+                        help="number of times to repeat training",
+                        type=int,
+                        default=1,
+                        action='store')
+    parser.add_argument("-s", "--seeds",
+                        help="optionally provide seeds for the training reps as comma-delimited list",
+                        type=str,
+                        default=None,
+                        action='store')
+    parser.add_argument("-o", "--outdir",
+                        help="training output folder",
+                        type=str,
+                        default="",
+                        action='store')
+    parser.add_argument("-n", "--run_name",
+                        help="run identifier",
+                        type=str,
+                        default="",
+                        action='store')
+
+    return parser.parse_args()
+
+
+def check_input_args(args):
+    logging.info('')
+    logging.info('Checking input arguments')
+    # check required arguments
+    if args.train_file is None:
+        raise Exception('provide training data')
+    elif not os.path.exists(args.train_file):
+        raise FileNotFoundError(f'training data not found: {args.train_file}')
+    else:
+        logging.info(f'train_file={args.train_file}')
+
+    if args.val_file is None:
+        logging.info('no validation data provided')
+    elif not os.path.exists(args.val_file):
+        raise FileNotFoundError(f'validation data not found: {args.val_file}')
+    else:
+        logging.info(f'val_file={args.val_file}')
+
+
+    logging.info(f'delimiter={args.delimiter}')
+    logging.info(f'pep_col={args.pep_col}')
+    logging.info(f'allele_col={args.allele_col}')
+    logging.info(f'target_col={args.target_col}')
+    logging.info(f'fold_col={args.fold_col}')
+    logging.info(f'folds={args.folds}')
+    logging.info(f'epochs={args.epochs}')
+    logging.info(f'learning_rate={args.learning_rate}')
+    logging.info(f'dropout_rate={args.dropout_rate}')
+    logging.info(f'batch_size={args.batch_size}')
+    logging.info(f'pred_replicates={args.pred_replicates}')
+    logging.info(f'repetitions={args.repetitions}')
+    logging.info(f'decoy_mul={args.decoy_mul}')
+    logging.info(f'decoy_ratio={args.decoy_ratio}')
+    logging.info(f'resampling_hits={args.resampling_hits}')
+
+    if args.aa_feature_folder is None or args.aa_feature_folder == '':
+        logging.info(f'no aa_feature_folder provided')
+    elif not os.path.exists(args.aa_feature_folder):
+        raise FileNotFoundError(f'aa_feature_folder not found: {args.aa_feature_folder}')
+    else:
+        logging.info(f'aa_feature_folder={args.aa_feature_folder}')
+
+    logging.info(f'outdir={args.outdir}')
+    logging.info(f'assign_folds={args.assign_folds}')
+    logging.info(f'run_name={args.run_name}')
+    logging.info(f'seeds={args.seeds}')
+
+    if args.hla_encoding_file is None:
+        logging.info('no hla_encoding_file provided, using default')
+    elif not os.path.exists(args.hla_encoding_file):
+        raise FileNotFoundError(f'hla_encoding_file not found: {args.hla_encoding_file}')
+    else:
+        logging.info(f'hla_encoding_file={args.hla_encoding_file}')
+
+    logging.info(f'feat_cols={args.feat_cols}')
+
+    if args.feat_sets is None:
+        logging.info('no feature set file, using feat_cols if provided')
+    elif not os.path.exists(args.feat_sets):
+        raise FileNotFoundError(f'feature set file not found: {args.feat_sets}')
+    else:
+        logging.info(f'feat_sets={args.feat_sets}')
+
+    logging.info('')
+
+
+def main():
+    args = build_parser()
+
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
+
+    log_file_path = os.path.join(args.outdir, f'{args.run_name}.{get_currtime()}.training.log')
+    logging.basicConfig(filename=log_file_path,
+                        level=logging.INFO,
+                        format='%(asctime)s %(levelname)s: %(message)s',
+                        datefmt='%m/%d/%Y %I:%M:%S%p')
+    logging.info('Logging to: {}'.format(log_file_path))
+
+    check_input_args(args)
+
+    train_file = args.train_file
+    val_file = args.val_file
+    delimiter = args.delimiter
+    pep_col = args.pep_col
+    allele_col = args.allele_col
+    tgt_col = args.target_col
+    fold_col = args.fold_col
+    folds = args.folds
+    epochs = args.epochs
+    learning_rate = args.learning_rate
+    dropout_rate = args.dropout_rate
+    batch_size = args.batch_size
+    pred_replicates = args.pred_replicates
+    reps = args.repetitions
+    decoy_mul = args.decoy_mul
+    decoy_ratio = args.decoy_ratio
+    resampling_hits = args.resampling_hits
+    aa_feature_folder = args.aa_feature_folder
+    outdir = args.outdir
+    assign_folds = args.assign_folds
+    run_name = args.run_name
+    seeds = args.seeds
+    hla_encoding_file = args.hla_encoding_file
+
+    pep_feature_cols = [] if len(args.feat_cols) == 0 else args.feat_cols.split(";")
+    pep_feature_sets_dict = {str(pep_feature_cols): [col for col in pep_feature_cols]} if not args.feat_sets \
+        else parse_feature_sets(args.feat_sets)
+    # override peptide column input if feature set dict is provided
+    pep_feature_cols = list({x for f in list(pep_feature_sets_dict.values()) if f for x in f}) if args.feat_sets \
+        else pep_feature_cols
+    pep_feature_cols.append(pep_col)
+    seeds = None if seeds is None else seeds.split(';')
+
+    # retrieve list of amino acid feature files
+    aa_feature_files = get_aa_feature_files_from_dir(aa_feature_folder)
+
+    train_df = pd.read_csv(train_file, sep=delimiter)
+
+    assert (all([np.issubdtype(train_df[c], np.number) for c in pep_feature_cols if c != pep_col]))
+
+    rep_metrics = []
+
+    logging.info('Loading training dataset...')
+    peptide_dataset = PeptideDatasetTrain(train_df,
+                                          pep_col_name=pep_col,
+                                          allele_col_name=allele_col,
+                                          target_col_name=tgt_col,
+                                          fold_col_name=fold_col,
+                                          folds=folds,
+                                          aa_feature_files=aa_feature_files,
+                                          hla_encoding_file=hla_encoding_file)
+
+    if val_file is not None:
+        logging.info('Loading validation dataset...')
+        val_df = pd.read_csv(val_file, sep=delimiter)
+        val_dataset = PeptideDatasetTrain(val_df,
+                                          pep_col_name=pep_col,
+                                          allele_col_name=allele_col,
+                                          target_col_name=tgt_col,
+                                          fold_col_name=fold_col,
+                                          folds=folds,
+                                          aa_feature_files=aa_feature_files,
+                                          hla_encoding_file=hla_encoding_file)
+    else:
+        logging.warning('No validation dataset provided, skipping validation...')
+        val_dataset = None
+
+    for rep in range(1, reps + 1):
+        logging.info('')
+        logging.info(f'Training rep {rep} of {reps} reps...')
+
+        rep_outdir = os.path.join(outdir, f'rep{str(rep)}')
+        seed = random.randrange(0, 1000) if seeds is None else int(seeds[rep - 1])
+        logging.info(f"Rep {rep} using seed = {seed}")
+
+        metrics = trainer(peptide_dataset=peptide_dataset,
+                          folds=folds,
+                          epochs=epochs,
+                          learning_rate=learning_rate,
+                          dropout_rate=dropout_rate,
+                          batch_size=batch_size,
+                          pred_replicates=pred_replicates,
+                          decoy_mul=decoy_mul,
+                          decoy_ratio=decoy_ratio,
+                          resampling_hits=resampling_hits,
+                          aa_feature_files=aa_feature_files,
+                          output_dir=rep_outdir,
+                          featsets_dict=pep_feature_sets_dict,
+                          run_name=run_name,
+                          seed=seed,
+                          reassign_folds=assign_folds,
+                          val_dataset=val_dataset)
+
+        rep_metrics.extend(metrics)
+
+        logging.info(f"Training finished for rep {rep}. Outputs stored in {rep_outdir}")
+
+    logging.info(f'Writing all_metrics file to {os.path.join(outdir, "all_metrics.tsv")}')
+    all_metrics = pd.DataFrame(rep_metrics, columns=["features", "auc", "prauc", "ppv"])
+    all_metrics.to_csv(os.path.join(outdir, 'all_metrics.tsv'), sep='\t', index=False)
+
+    # create summary plots if running multiple reps
+    if reps > 1:
+        logging.info('')
+        logging.info(f'Creating summary evaluation tables and figures across {reps} replicates')
+        logging.info(f'Writing summary metric table to {os.path.join(outdir, "summary_metrics.tsv")}')
+        summ_metrics = get_dedup_pep_df(all_metrics)
+        summ_metrics.to_csv(os.path.join(outdir, 'summary_metrics.tsv'), sep='\t', index=False)
+
+        TrainingEvaluation.save_feature_comparison_plots(summ_metrics, "mean_prauc", "std_prauc", outdir,
+                                                         "prauc_barplot.png")
+        TrainingEvaluation.save_feature_comparison_plots(summ_metrics, "mean_ppv", "std_ppv", outdir, "ppv_barplot.png")
+
+
+def train_preset_split():
+    # Load arguments (modified from main())
+    args = build_parser()
+
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
+
+    log_file_path = os.path.join(args.outdir, f'{args.run_name}.{get_currtime()}.training.log')
+    logging.basicConfig(filename=log_file_path,
+                        level=logging.INFO,
+                        format='%(asctime)s %(levelname)s: %(message)s',
+                        datefmt='%m/%d/%Y %I:%M:%S%p')
+    logging.info('Logging to: {}'.format(log_file_path))
+
+    check_input_args(args)
+
+    pep_file = args.train_file
+    # val_file = args.val_file
+    delimiter = args.delimiter
+    pep_col = args.pep_col
+    allele_col = args.allele_col
+    tgt_col = args.target_col
+    fold_col = args.fold_col
+    folds = args.folds
+    epochs = args.epochs
+    learning_rate = args.learning_rate
+    dropout_rate = args.dropout_rate
+    batch_size = args.batch_size
+    pred_replicates = args.pred_replicates
+    reps = args.repetitions
+    decoy_mul = args.decoy_mul
+    decoy_ratio = args.decoy_ratio
+    resampling_hits = args.resampling_hits
+    aa_feature_folder = args.aa_feature_folder
+    outdir = args.outdir
+    # assign_folds = args.assign_folds
+    run_name = args.run_name
+    seeds = args.seeds
+    hla_encoding_file = args.hla_encoding_file
+
+    pep_feature_cols = [] if len(args.feat_cols) == 0 else args.feat_cols.split(";")
+    pep_feature_sets_dict = {str(pep_feature_cols): [col for col in pep_feature_cols]} if not args.feat_sets \
+        else parse_feature_sets(args.feat_sets)
+    # override peptide column input if feature set dict is provided
+    pep_feature_cols = list({x for f in list(pep_feature_sets_dict.values()) if f for x in f}) if args.feat_sets \
+        else pep_feature_cols
+    pep_feature_cols.append(pep_col)
+    seeds = None if seeds is None else seeds.split(';')
+
+    # retrieve list of amino acid feature files
+    aa_feature_files = get_aa_feature_files_from_dir(aa_feature_folder)
+
+    pep_df = pd.read_csv(pep_file, sep=delimiter)
+
+    assert (all([np.issubdtype(pep_df[c], np.number) for c in pep_feature_cols if c != pep_col]))
+
+    rep_metrics = []
+
+    for rep in range(1, reps + 1):
+        logging.info('')
+        logging.info(f'Training rep {rep} of {reps} reps...')
+
+        rep_outdir = os.path.join(outdir, f'rep{str(rep)}')
+        seed = random.randrange(0, 1000) if seeds is None else int(seeds[rep - 1])
+        logging.info(f"Rep {rep} using seed = {seed}")
+
+        # Start training loop (modified from trainer())
+        device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+        metric_rows = []
+        for featname in pep_feature_sets_dict:
+            logging.info(f"Training feature set {str(featname)} of {str(list(pep_feature_sets_dict.keys()))}")
+
+            feat_set = pep_feature_sets_dict[featname]
+            run_out_path = '-'.join([run_name, featname]) if run_name else featname
+
+            models_dir, configs_dir, eval_dir = make_output_dirs(output_dir=rep_outdir, out_path=run_out_path)
+
+            eval_dict = {"peptide": [], "allele": [], "target": [], "pred_mean": [], "pred_var": [], "fold": []}
+            cross_fold_dict = {"fold": [], "ppv": [], "prauc": []}
+
+            # peptide_dataset.set_feat_cols(feat_set)
+            # feature_dims = peptide_dataset.feature_dimensions()
+
+            for fold in range(folds):
+                logging.info(f"Training fold {str(fold + 1)} of {folds}")
+                logging.info(f"Decoy mul: {decoy_mul}")
+                logging.info(f"Decoy ratio: {decoy_ratio}")
+                logging.info(f"Resampling hits: {resampling_hits}")
+
+                train_df = pep_df.loc[(pep_df["set"] == "train") & (pep_df[fold_col] == fold)].reset_index(drop=True)
+                test_df = pep_df.loc[(pep_df["set"] == "test") & (pep_df[fold_col] == fold)].reset_index(drop=True)
+                valid_df = pep_df.loc[(pep_df["set"] == "valid") & (pep_df[fold_col] == fold)].reset_index(drop=True)
+
+                train_ds = PeptideDatasetTrain(train_df,
+                                               pep_col_name=pep_col,
+                                               allele_col_name=allele_col,
+                                               target_col_name=tgt_col,
+                                               fold_col_name=fold_col,
+                                               aa_feature_files=aa_feature_files,
+                                               hla_encoding_file=hla_encoding_file)
+                test_ds = PeptideDatasetTrain(test_df,
+                                              pep_col_name=pep_col,
+                                              allele_col_name=allele_col,
+                                              target_col_name=tgt_col,
+                                              fold_col_name=fold_col,
+                                              aa_feature_files=aa_feature_files,
+                                              hla_encoding_file=hla_encoding_file)
+                valid_ds = PeptideDatasetTrain(valid_df,
+                                               pep_col_name=pep_col,
+                                               allele_col_name=allele_col,
+                                               target_col_name=tgt_col,
+                                               fold_col_name=fold_col,
+                                               aa_feature_files=aa_feature_files,
+                                               hla_encoding_file=hla_encoding_file)
+
+                # Sample elements randomly from a given list of ids, no replacement.
+                train_subsampler = peptide_nn.PeptideRandomSampler([i for i in range(len(train_ds))], seed)
+                test_subsampler = peptide_nn.PeptideRandomSampler([i for i in range(len(test_ds))], seed)
+                val_subsampler = peptide_nn.PeptideRandomSampler([i for i in range(len(valid_ds))], seed)
+
+
+                # Define data loaders for training and testing data in this fold
+                trainloader = torch_data.DataLoader(train_ds, batch_size=batch_size, sampler=train_subsampler)
+                testloader = torch_data.DataLoader(test_ds, batch_size=batch_size, sampler=test_subsampler)
+                valloader = torch_data.DataLoader(valid_ds, batch_size=batch_size, sampler=val_subsampler)
+
+                feature_dims = train_ds.feature_dimensions()
+                assert(feature_dims == test_ds.feature_dimensions() == valid_ds.feature_dimensions())
+
+                model = peptide_nn.PeptideNN2(feature_dims, dropout_rate)
+                if torch.cuda.device_count() > 1:
+                    logging.info(f"Let's use {torch.cuda.device_count()} GPUs!")
+                    model = nn.DataParallel(model)
+                model.to(device)
+                logging.info(f"Device: {str(device)}")
+                optimizer_dict = peptide_nn.train(model, trainloader, learning_rate, epochs, device, valloader, patience=4)
+
+                # Create model and train
+                model_config = create_config_dict(device=device, epochs=epochs, lr=learning_rate, dr=dropout_rate,
+                                                  batch_size=batch_size, decoy_mul=decoy_mul,
+                                                  eval_decoy_ratio=decoy_ratio,
+                                                  fold=fold, aa_features=aa_feature_files,
+                                                  featname=featname, pepfeats_dict=pep_feature_sets_dict, seed=seed)
+
+                peptide_nn.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
+
+                _, targets, indices, preds = peptide_nn.evaluate(model, testloader, pred_replicates, device)
+                targets = [t.item() for t in torch.hstack(targets).cpu()]
+                indices = [i.item() for i in torch.hstack(indices).cpu()]
+                preds = torch.vstack(preds).cpu()
+
+                input_peps, input_alleles = ([test_ds.pep_at(i) for i in indices],
+                                             [test_ds.allele_at(i) for i in indices])
+                pred_means = preds.mean(dim=-1).numpy()
+                pred_vars = preds.var(dim=-1).numpy()
+
+                for p, a, t, m, v in zip(input_peps, input_alleles, targets, pred_means, pred_vars):
+                    eval_dict['peptide'].append(p)
+                    eval_dict['allele'].append(a)
+                    eval_dict['target'].append(t)
+                    eval_dict['pred_mean'].append(m)
+                    eval_dict['pred_var'].append(v)
+                    eval_dict['fold'].append(str(fold + 1))
+
+            eval_df = pd.DataFrame.from_dict(eval_dict)
+
+            ## getting cross-fold metrics
+            for fold, df in eval_df.groupby("fold"):
+                train_eval = TrainingEvaluation(eval_df=df, decoy_ratio=True)
+                cross_fold_dict['fold'].append(fold)
+                cross_fold_dict['ppv'].append(train_eval.get_ppv())
+                cross_fold_dict['prauc'].append(train_eval.get_prauc())
+
+            crossfold_df = pd.DataFrame.from_dict(cross_fold_dict)
+            crossfold_df.to_csv(os.path.join(eval_dir, "crossfold_eval.tsv"), index=False, sep='\t')
+
+            eval_path_name = '{}_{}_eval.txt'.format(run_out_path, get_currtime())
+            eval_df.to_csv(os.path.join(eval_dir, eval_path_name), index=False, sep='\t')
+
+            train_eval = TrainingEvaluation(eval_df=eval_df, seed=seed, decoy_ratio=True)
+            auc, prauc, ppv = train_eval.get_auc(), train_eval.get_prauc(), train_eval.get_ppv()
+
+            logging.info(
+                f"""Training and evaluation finished for {featname} {os.path.basename(rep_outdir)}.
+                             AUC: {auc}
+                             PPV: {ppv}
+                             PRAUC: {prauc}
+                        """)
+
+            metric_rows.append([featname, auc, prauc, ppv])
+
+        eval_metrics = pd.DataFrame(metric_rows, columns=['features', 'auc', 'prauc', 'ppv'])
+        eval_metrics.to_csv(os.path.join(rep_outdir, 'eval_metrics.tsv'), sep='\t', index=False)
+
+        rep_metrics.extend(metric_rows)
+
+        logging.info(f"Training finished for rep {rep}. Outputs stored in {rep_outdir}")
+
+    logging.info(f'Writing all_metrics file to {os.path.join(outdir, "all_metrics.tsv")}')
+    all_metrics = pd.DataFrame(rep_metrics, columns=["features", "auc", "prauc", "ppv"])
+    all_metrics.to_csv(os.path.join(outdir, 'all_metrics.tsv'), sep='\t', index=False)
+
+    # create summary plots if running multiple reps
+    if reps > 1:
+        logging.info('')
+        logging.info(f'Creating summary evaluation tables and figures across {reps} replicates')
+        logging.info(f'Writing summary metric table to {os.path.join(outdir, "summary_metrics.tsv")}')
+        summ_metrics = get_dedup_pep_df(all_metrics)
+        summ_metrics.to_csv(os.path.join(outdir, 'summary_metrics.tsv'), sep='\t', index=False)
+
+        TrainingEvaluation.save_feature_comparison_plots(summ_metrics, "mean_prauc", "std_prauc", outdir,
+                                                         "prauc_barplot.png")
+        TrainingEvaluation.save_feature_comparison_plots(summ_metrics, "mean_ppv", "std_ppv", outdir, "ppv_barplot.png")
+
+
+def trainer(peptide_dataset: PeptideDatasetTrain,
+            folds: int,
+            epochs: int,
+            learning_rate: float,
+            dropout_rate: float,
+            batch_size: int,
+            pred_replicates: int,
+            decoy_mul: int,
+            decoy_ratio: int,
+            resampling_hits: bool,
+            aa_feature_files: List[os.PathLike],
+            output_dir: os.PathLike,
+            featsets_dict: Dict[str, List[str]] = {},
+            run_name: str = "", seed: int = None,
+            reassign_folds: bool = True,
+            val_dataset: PeptideDatasetTrain = None):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+    metric_rows = []
+
+    if reassign_folds:
+        peptide_dataset.reassign_folds(folds, seed=seed)
+
+    for featname in featsets_dict:
+        logging.info(f"Training feature set {str(featname)} of {str(list(featsets_dict.keys()))}")
+
+        feat_set = featsets_dict[featname]
+        run_out_path = '-'.join([run_name, featname]) if run_name else featname
+
+        models_dir, configs_dir, eval_dir = make_output_dirs(output_dir=output_dir, out_path=run_out_path)
+
+        eval_dict = {"peptide": [], "allele": [], "target": [], "pred_mean": [], "pred_var": [], "fold": []}
+        cross_fold_dict = {"fold": [], "ppv": [], "prauc": []}
+
+        peptide_dataset.set_feat_cols(feat_set)
+        feature_dims = peptide_dataset.feature_dimensions()
+
+        if val_dataset is not None:
+            val_dataset.set_feat_cols(feat_set)
+            assert (feature_dims == val_dataset.feature_dimensions())
+
+        for fold in range(folds):
+
+            logging.info(f"Training fold {str(fold + 1)} of {folds}")
+            logging.info(f"Decoy mul: {decoy_mul}")
+            logging.info(f"Decoy ratio: {decoy_ratio}")
+            logging.info(f"Resampling hits: {resampling_hits}")
+
+            train_ids = peptide_dataset.get_train_idxs(fold=fold, decoy_mul=decoy_mul, resampling_hits=resampling_hits,
+                                                       seed=seed)
+            test_ids = peptide_dataset.get_test_idxs(fold=fold, decoy_ratio=decoy_ratio, seed=seed)
+
+            unique, counts = np.unique(peptide_dataset.pep_df['ha__target'][train_ids], return_counts=True)
+            logging.info(f"""Train split:
+                            \n{np.asarray((unique, counts))}
+                         """)
+            # if len(feat_set):
+            #     logging.info(peptide_dataset.pep_df.iloc[train_ids].groupby('ha__target')[feat_set].describe())
+            # logging.info('')
+
+            unique, counts = np.unique(peptide_dataset.pep_df['ha__target'][test_ids], return_counts=True)
+            logging.info(f"""Test split:
+                            \n{np.asarray((unique, counts))}
+                         """)
+            # if len(feat_set):
+            #     logging.info(peptide_dataset.pep_df.iloc[test_ids].groupby('ha__target')[feat_set].describe())
+            # logging.info('')
+
+            # Sample elements randomly from a given list of ids, no replacement.
+            train_subsampler = peptide_nn.PeptideRandomSampler(train_ids, seed)
+            test_subsampler = peptide_nn.PeptideRandomSampler(test_ids, seed)
+
+            # Define data loaders for training and testing data in this fold
+            trainloader = torch_data.DataLoader(peptide_dataset, batch_size=batch_size, sampler=train_subsampler)
+            testloader = torch_data.DataLoader(peptide_dataset, batch_size=batch_size, sampler=test_subsampler)
+
+            try:
+                val_subsampler = peptide_nn.PeptideRandomSampler([i for i in range(len(val_dataset))], seed)
+                valloader = torch_data.DataLoader(val_dataset, batch_size=batch_size, sampler=val_subsampler)
+            except TypeError:
+                valloader = None
+
+            model = peptide_nn.PeptideNN2(feature_dims, dropout_rate)
+            if torch.cuda.device_count() > 1:
+                logging.info(f"Let's use {torch.cuda.device_count()} GPUs!")
+                model = nn.DataParallel(model)
+            model.to(device)
+            logging.info(f"Device: {str(device)}")
+            optimizer_dict = peptide_nn.train(model, trainloader, learning_rate, epochs, device, valloader)
+
+            # Create model and train
+            model_config = create_config_dict(device=device, epochs=epochs, lr=learning_rate, dr=dropout_rate,
+                                              batch_size=batch_size, decoy_mul=decoy_mul, eval_decoy_ratio=decoy_ratio,
+                                              fold=fold, aa_features=aa_feature_files,
+                                              featname=featname, pepfeats_dict=featsets_dict, seed=seed)
+
+            peptide_nn.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
+
+            _, targets, indices, preds = peptide_nn.evaluate(model, testloader, pred_replicates, device)
+            targets = [t.item() for t in torch.hstack(targets).cpu()]
+            indices = [i.item() for i in torch.hstack(indices).cpu()]
+            preds = torch.vstack(preds).cpu()
+
+            input_peps, input_alleles = [peptide_dataset.pep_at(i) for i in indices], [peptide_dataset.allele_at(i) for
+                                                                                       i in
+                                                                                       indices]
+            pred_means = preds.mean(dim=-1).numpy()
+            pred_vars = preds.var(dim=-1).numpy()
+
+            for p, a, t, m, v in zip(input_peps, input_alleles, targets, pred_means, pred_vars):
+                eval_dict['peptide'].append(p)
+                eval_dict['allele'].append(a)
+                eval_dict['target'].append(t)
+                eval_dict['pred_mean'].append(m)
+                eval_dict['pred_var'].append(v)
+                eval_dict['fold'].append(str(fold + 1))
+
+        eval_df = pd.DataFrame.from_dict(eval_dict)
+
+        ## getting cross-fold metrics
+        for fold, df in eval_df.groupby("fold"):
+            train_eval = TrainingEvaluation(eval_df=df, decoy_ratio=True)
+            cross_fold_dict['fold'].append(fold)
+            cross_fold_dict['ppv'].append(train_eval.get_ppv())
+            cross_fold_dict['prauc'].append(train_eval.get_prauc())
+
+        crossfold_df = pd.DataFrame.from_dict(cross_fold_dict)
+        crossfold_df.to_csv(os.path.join(eval_dir, "crossfold_eval.tsv"), index=False, sep='\t')
+
+        eval_path_name = '{}_{}_eval.txt'.format(run_out_path, get_currtime())
+        eval_df.to_csv(os.path.join(eval_dir, eval_path_name), index=False, sep='\t')
+
+        train_eval = TrainingEvaluation(eval_df=eval_df, seed=seed, decoy_ratio=True)
+        auc, prauc, ppv = train_eval.get_auc(), train_eval.get_prauc(), train_eval.get_ppv()
+
+        logging.info(
+            f"""Training and evaluation finished for {featname} {os.path.basename(output_dir)}.
+                 AUC: {auc}
+                 PPV: {ppv}
+                 PRAUC: {prauc}
+            """)
+
+        metric_rows.append([featname, auc, prauc, ppv])
+
+    eval_metrics = pd.DataFrame(metric_rows, columns=['features', 'auc', 'prauc', 'ppv'])
+    eval_metrics.to_csv(os.path.join(output_dir, 'eval_metrics.tsv'), sep='\t', index=False)
+    return metric_rows
+
+
+if __name__ == "__main__":
+    # main()
+    train_preset_split()

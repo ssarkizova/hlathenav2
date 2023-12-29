@@ -1,23 +1,20 @@
 """ Featurized peptide dataset """
 
-import os
 import logging
+from typing import List, Tuple, Union, Optional
+
 import numpy as np
 import pandas as pd
-from typing import List, Tuple, Union, Optional
 from pandas.api.types import is_list_like
-
-import torch
 from torch import Tensor
 from torch.utils.data import Dataset
 
-import importlib_resources
-
-# from hlathena import references # cleo note: causing circular import error, need to remove or rearrange imports 
+# from hlathena import references # cleo note: causing circular import error, need to remove or rearrange imports
 from hlathena.definitions import AMINO_ACIDS
 from hlathena.definitions import INVERSE_AA_MAP
 from hlathena.definitions import PEP_LENS
 from hlathena.pep_encoder import PepEncoder
+
 
 ## TO DO - check if the the output signatures are well defined... e.g. can None pass for a List[str]?
 
@@ -45,7 +42,8 @@ class PeptideDataset(Dataset):
         pep_col_name: Optional[str] = 'pep',
         allele_col_name: Optional[str] = None,        
         target_col_name: Optional[str] = None, # TO DO: target_col or target_value, also support this to be single number 1 or 0?
-        encode: Optional[bool] = False) -> None: 
+        encode: Optional[bool] = False,
+        reset_index: Optional[bool] = False) -> None:
         """ Inits a peptide dataset which featurizes the hit and decoy peptides.
 
         Args:
@@ -65,6 +63,8 @@ class PeptideDataset(Dataset):
             pep_df.columns = ['pep']
 
         self.pep_df = pep_df.copy()
+        if reset_index:
+            self.pep_df.reset_index(drop=True, inplace=True)
 
         # Check that the specified peptide column name exist
         if pep_col_name not in pep_df.columns:
@@ -165,7 +165,7 @@ class PeptideDataset(Dataset):
 
     # TO DO - does the output spec work if only one thing is retured but the -> says tuple?
     def __getitem__(self, idx) -> Tuple[Tensor, float]:
-        if not 'ha__target' in self.pep_df.columns:
+        if 'ha__target' not in self.pep_df.columns:
             return self.encoded_peptides[idx]
         else:
             return self.encoded_peptides[idx], self.pep_df['ha__target'][idx]
@@ -182,7 +182,7 @@ class PeptideDataset(Dataset):
         else: 
             return None
     
-    def get_allele_peptide_counts(self) -> List[str]:
+    def get_allele_peptide_counts(self) -> Union[pd.DataFrame, None]:
         if 'ha__allele' in self.pep_df.columns:
             tbl = pd.DataFrame(self.pep_df.groupby(["allele"]).size())
             tbl.columns = ['n_pep']
@@ -190,7 +190,7 @@ class PeptideDataset(Dataset):
         else: 
             return None
     
-    def get_allele_peptide_length_counts(self) -> List[str]:
+    def get_allele_peptide_length_counts(self) -> Union[List[str], None]:
         if 'ha__allele' in self.pep_df.columns:
             tbl = self.pep_df.groupby(["ha__allele", 'ha__pep_len']).size()
             tbl = tbl.unstack(level='ha__pep_len').sort_index().fillna(0).astype(int)
@@ -217,7 +217,7 @@ class PeptideDataset(Dataset):
                 for aa in pep:
                     assert aa in AMINO_ACIDS
         except AssertionError:
-             print("Peptides sequences contain invalid characters. \
+            print("Peptides sequences contain invalid characters. \
                    Please ensure peptides sequences only contain the 20 standard amino acid symbols.") 
 
     def _check_supported_peptide_lengths(self) -> None:
@@ -236,22 +236,20 @@ class PeptideDataset(Dataset):
         """
         assert len(self.get_peptide_lengths()) == 1, f"Peptides of multiple lengths are present in the dataset: {self.get_peptide_lengths()}"
 
-    
-    # TO DO: we should also check if the alleles are valid (format names and and/or look at the full sequence is provided)    
+    # TO DO: we should also check if the alleles are valid
+    # (format names and and/or look at the full sequence is provided)
     def _check_alleles(self) -> None:
         pass
         
     # TO DO: similarly to the Terra workflow, add some code to standardize allele names; Perhaps this belongs in a generic 'tools' .py
     def format_allele_names(self) -> None:
         pass
-
         
     def _split_peptides(self) -> List[List[str]]:
         """
         Split peptides into list of list of amino acids
         """
         return [list(pep) for pep in self.get_peptides()]
-    
 
     def subset_data(
             self,
@@ -264,21 +262,21 @@ class PeptideDataset(Dataset):
         Args:
             peplens: int or List[int], optional, default: None
                 length of peptides to include in dataset
-            allele:  str or List[str], optional, default: None 
+            alleles:  str or List[str], optional, default: None
                 name of allele to include in dataset 
                 based on entries in `allele` column of pep_df 
                 (`allele` column only required if this parameter is specified)
+            reset_index: bool, optional, default: False
         """
         # Filter to specified peptide length(s) if any
-        if peplens != None:
+        if peplens is not None:
             if not is_list_like(peplens):
                 peplens = [peplens]
             self.pep_df = self.pep_df[self.pep_df['ha__pep_len'].isin(peplens)]
 
-
         # Filter to specified allele(s) if any
-        if alleles != None:
-            if not 'ha__allele' in self.pep_df.columns:
+        if alleles is not None:
+            if 'ha__allele' not in self.pep_df.columns:
                 # TO DO: warning message that there is no allele column in the dataset to subset on
                 pass
             else:
@@ -288,7 +286,6 @@ class PeptideDataset(Dataset):
 
         if reset_index:
             self.pep_df.reset_index()
-    
         
     # TO DO - keep here or in PepEncoder?? Also edit hard coded values!
     def decode_peptide(self, encoded: Tensor) -> List[str]:
@@ -302,11 +299,11 @@ class PeptideDataset(Dataset):
         """
         
         # TO DO - add this back to accomodate for peptide-level features
-        #if self.peptide_features_dim > 0:
+        # if self.peptide_features_dim > 0:
         #    encoded = encoded[:-self.peptide_features_dim]
         
         encoded = encoded.reshape(
-            #self.peptide_length, self.aa_feature_map.feature_count)
+            # self.peptide_length, self.aa_feature_map.feature_count)
             9, 20)
         dense = encoded.argmax(-1)
         if len(dense.shape) > 1:

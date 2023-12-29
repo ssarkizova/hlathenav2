@@ -1,0 +1,1 @@
+PP:boman,hmoment,hydrophobicity,helixbend,sidechain,xstr,partspec,pkc
