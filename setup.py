@@ -22,7 +22,7 @@ setup(
         'scikit-learn>=1.0.2',
         'matplotlib>=3.5.1',
         'seaborn>=0.12.0',
-        'torch>=1.13.0',
+        'torch>=1.12.0',
         'Bio>=1.6.0',
         'pyahocorasick>=2.0.0'], # add req.txt
 

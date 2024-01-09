@@ -460,7 +460,7 @@ def train_preset_split():
     pep_feature_cols = list({x for f in list(pep_feature_sets_dict.values()) if f for x in f}) if args.feat_sets \
         else pep_feature_cols
     pep_feature_cols.append(pep_col)
-    seeds = None if seeds is None else seeds.split(';')
+    # seeds = None if seeds is None else seeds.split(';')
 
     # retrieve list of amino acid feature files
     aa_feature_files = get_aa_feature_files_from_dir(aa_feature_folder)
@@ -476,8 +476,17 @@ def train_preset_split():
         logging.info(f'Training rep {rep} of {reps} reps...')
 
         rep_outdir = os.path.join(outdir, f'rep{str(rep)}')
-        seed = random.randrange(0, 1000) if seeds is None else int(seeds[rep - 1])
+        # seed = random.randrange(0, 1000) if seeds is None else int(seeds[rep - 1])
+        seed = 1
         logging.info(f"Rep {rep} using seed = {seed}")
+
+        os.environ['PYTHONHASHSEED'] = '0'
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
         # Start training loop (modified from trainer())
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -498,6 +507,7 @@ def train_preset_split():
             # feature_dims = peptide_dataset.feature_dimensions()
 
             for fold in range(folds):
+            # for fold in [1,4]:
                 logging.info(f"Training fold {str(fold + 1)} of {folds}")
                 logging.info(f"Decoy mul: {decoy_mul}")
                 logging.info(f"Decoy ratio: {decoy_ratio}")
@@ -534,11 +544,42 @@ def train_preset_split():
                 test_subsampler = peptide_nn.PeptideRandomSampler([i for i in range(len(test_ds))], seed)
                 val_subsampler = peptide_nn.PeptideRandomSampler([i for i in range(len(valid_ds))], seed)
 
-
+                num_workers = max(1, len(os.sched_getaffinity(0)))
+                prefetch_factor = 16 #2**num_workers
+                pin_memory = True
+                # 16 workers 16 prefetch pin memory True seed 123 2 reps = 1:16x3 min from device = cuda to stat printout
+                # 4 workers 16 prefetch pin memory False seed 123 2 reps = 1:18 1:10 1:11
+                # 4 workers 16 prefetch pin memory True seed 123 2 reps 1:19 1:06 1:11
+                # 16 workers 16 prefetch pin memory False seed 123 2 reps 1:28 1:21 1:25
+                # 2 workers 16 prefetch pin memory 2 reps seed 123 = 1:37 1:27 1:40
+                # 2 workers 8 prefetch = 1.37 1.33 1.34 
+                # 4 workers, 16 prefetch, pin memory True seed 123 = 1.15 1.07 0.59
+                
+                logging.info(f"Num workers: {num_workers}")
+                logging.info(f"Prefetch factor: {prefetch_factor}")
+                logging.info(f"Pin memory?: {pin_memory}")
                 # Define data loaders for training and testing data in this fold
-                trainloader = torch_data.DataLoader(train_ds, batch_size=batch_size, sampler=train_subsampler)
-                testloader = torch_data.DataLoader(test_ds, batch_size=batch_size, sampler=test_subsampler)
-                valloader = torch_data.DataLoader(valid_ds, batch_size=batch_size, sampler=val_subsampler)
+                trainloader = torch_data.DataLoader(train_ds, 
+                                                    batch_size=batch_size, 
+                                                    sampler=train_subsampler,
+                                                    num_workers=num_workers,
+                                                    pin_memory=pin_memory,
+                                                    prefetch_factor=prefetch_factor,
+                                                    persistent_workers=True)
+                testloader =  torch_data.DataLoader(test_ds, 
+                                                    batch_size=batch_size, 
+                                                    sampler=test_subsampler,
+                                                    num_workers=num_workers,
+                                                    pin_memory=pin_memory,
+                                                    prefetch_factor=prefetch_factor,
+                                                    persistent_workers=True)
+                valloader =   torch_data.DataLoader(valid_ds, 
+                                                    batch_size=batch_size, 
+                                                    sampler=val_subsampler,
+                                                    num_workers=num_workers,
+                                                    pin_memory=pin_memory,
+                                                    prefetch_factor=prefetch_factor,
+                                                    persistent_workers=True)
 
                 feature_dims = train_ds.feature_dimensions()
                 assert(feature_dims == test_ds.feature_dimensions() == valid_ds.feature_dimensions())

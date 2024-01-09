@@ -101,7 +101,7 @@ class PeptideRandomSampler(Sampler):
         seed (int): random number generator seed
     """
     def __init__(self, dataset, seed):
-        super().__init__(data_source=dataset)
+        super().__init__()
         self.data = dataset
         self.seed = seed
 
