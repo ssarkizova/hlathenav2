@@ -58,16 +58,11 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
                          pep_col_name=pep_col_name,
                          allele_name=allele_name,
                          allele_col_name=allele_col_name,
+                         target_col_name=target_col_name,
                          reset_index=reset_index)
 
         if target_col_name is None:
             raise AttributeError("Missing parameter target_col_name for PepHLADataset init")
-        else:  # TODO: remove
-            if 'ha__target' not in pep_df.columns:
-                self.pep_df.insert(
-                    loc=2,
-                    column='ha__target',
-                    value=self.pep_df[target_col_name])
 
         if fold_col_name is not None:
             if fold_col_name not in pep_df.columns:
@@ -86,22 +81,21 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
             if folds is not None:
                 self.reassign_folds(folds=folds)
 
-        self.pep_len = self._set_peptide_length()
-
+        self.max_len = self._set_max_length()
         # TODO: add a check to make sure the columns are present
 
         self.peptide_feature_cols = [] if feat_cols is None else feat_cols
 
-        self.PepHLAEncoder = PepHLAEncoder(self.pep_len,
+        self.PepHLAEncoder = PepHLAEncoder(maxlen=self.max_len,
                                            aa_feature_files=aa_feature_files,
-                                           hla_encoding_file=hla_encoding_file)
+                                           hla_encoding_file=hla_encoding_file,
+                                           is_pan_allele=len(self.get_alleles()) > 1)
 
     def __getitem__(self, i) -> Tuple[Tensor, float, int]:
-        return (self.PepHLAEncoder.encode(self.pep_at(i),
-                                          self.allele_at(i),
-                                          self.pep_features_at(i)),
-                self.tgt_at(i),
-                i)
+        return (self.PepHLAEncoder.
+                    encode(self.pep_at(i), self.allele_at(i), self.pep_features_at(i)),
+                    self.tgt_at(i),
+                    i)
 
     def pep_at(self, i: int) -> str:
         return self.pep_df.at[i, 'ha__pep']
@@ -141,11 +135,8 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
         np.random.seed(seed)
         train_idxs = [i for i, f in enumerate(self.folds()) if f != fold]
 
-        decoy_train_idxs, hit_train_idxs = [i for i in train_idxs if self.pep_df.at[i, 'ha__target'] == 0], [i for i in
-                                                                                                             train_idxs
-                                                                                                             if
-                                                                                                             self.pep_df.at[
-                                                                                                                 i, 'ha__target'] == 1]
+        decoy_train_idxs, hit_train_idxs = ([i for i in train_idxs if self.pep_df.at[i, 'ha__target'] == 0],
+                                            [i for i in train_idxs if self.pep_df.at[i, 'ha__target'] == 1])
         decoy_train_idxs = np.random.choice(decoy_train_idxs, len(hit_train_idxs) * decoy_mul, replace=True)
 
         if resampling_hits:
@@ -156,26 +147,11 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
     def get_test_idxs(self, fold: int, decoy_ratio: int = 1, seed: int = 1):
         np.random.seed(seed)
         test_idxs = [i for i, f in enumerate(self.folds()) if f == fold]
-        decoy_test_idxs, hit_test_idxs = [i for i in test_idxs if self.pep_df.at[i, 'ha__target'] == 0], [i for i in
-                                                                                                          test_idxs if
-                                                                                                          self.pep_df.at[
-                                                                                                              i, 'ha__target'] == 1]
+        decoy_test_idxs, hit_test_idxs = ([i for i in test_idxs if self.pep_df.at[i, 'ha__target'] == 0],
+                                          [i for i in test_idxs if self.pep_df.at[i, 'ha__target'] == 1])
         decoy_test_idxs = np.random.choice(decoy_test_idxs, len(hit_test_idxs) * decoy_ratio, replace=True)
 
         return list(decoy_test_idxs) + list(hit_test_idxs)
 
-    def _check_same_peptide_lengths(self) -> None:
-        """Check that all peptides are the same length
-        """
-        assert (len(self.get_peptide_lengths()) == 1)
-
-    def _set_peptide_length(self) -> int:
-        """
-        Set peptide length if peptides are valid sequences & are all the same length
-        """
-        try:
-            self._check_same_peptide_lengths()
-            pep_len = self.get_peptide_lengths()[0]
-            return pep_len
-        except AssertionError:
-            print("Peptides are different lengths. Peptide lengths must be equal.")
+    def _set_max_length(self):
+        return max(self.get_peptide_lengths())

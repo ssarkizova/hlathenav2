@@ -820,5 +820,5 @@ def trainer(peptide_dataset: PeptideDatasetTrain,
 
 
 if __name__ == "__main__":
-    # main()
-    train_preset_split()
+    main()
+    # train_preset_split()

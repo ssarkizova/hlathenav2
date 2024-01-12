@@ -98,7 +98,8 @@ class PeptideDataset(Dataset):
                 value=self.pep_df[pep_col_name].apply(len))
 
         if (not allele_name is None) and (not allele_col_name is None):
-            logging.warning(f"Both allele_name or allele_column_nameare specified; allele_name will be ignored")
+            logging.warning(f"Both allele_name or allele_column_name are specified; allele_name will be ignored")
+
         if not allele_col_name is None:
             if not 'ha__allele' in pep_df.columns:
                 self.pep_df.insert(

@@ -92,6 +92,7 @@ class PeptideNN(nn.Module):
         x = torch.sigmoid(self.fc2(x)) # making autocast happy, combine the sigmoid with the loss
         return x
 
+
 class PeptideRandomSampler(Sampler):
     """
     Creates a custom random sampler
@@ -101,7 +102,7 @@ class PeptideRandomSampler(Sampler):
         seed (int): random number generator seed
     """
     def __init__(self, dataset, seed):
-        super().__init__()
+        super().__init__(data_source=dataset)
         self.data = dataset
         self.seed = seed
 
@@ -136,70 +137,62 @@ def train(model, trainloader, learning_rate, epochs, device, valloader=None, pat
     early_stopper = EarlyStopper(patience=patience, min_delta=min_delta)
 
     model.train() # Set training mode to update gradients
-    for e in range(epochs):  # loop over the dataset multiple times
+    for ep in range(epochs):  # loop over the dataset multiple times
         # Initialize train and validation loss
-        train_epoch_loss = 0
+        train_epoch_loss = train_one_epoch(model, ep, trainloader, optimizer, criterion, device)
 
-        for _, data in enumerate(trainloader, 0):
-            # get the inputs; data is a list of [inputs, labels]
-            inputs = data[0].to(torch.float).to(device)
-            labels = data[1].to(device)
-
-            # zero the parameter gradients
-            optimizer.zero_grad()
-
-            # forward
-            outputs = model(inputs)
-
-            loss = criterion(outputs, labels.unsqueeze(-1).float())
-            loss.backward()
-            optimizer.step()
-
-            train_epoch_loss += loss.item()*inputs.size(0)
-
-        train_epoch_loss = train_epoch_loss/len(trainloader.sampler)
-        logging.info(f"Avg. train epoch {e} loss: {train_epoch_loss}")
         if valloader is not None:
-            val_epoch_loss = eval_loss(model, valloader, device)/len(valloader.sampler)
-            logging.info(f"Avg. validation epoch {e} loss: {val_epoch_loss}")
+            val_epoch_loss = eval_one_epoch(model, ep, valloader, criterion, device)
             if early_stopper.early_stop(val_epoch_loss):
-                logging.info(f"Stopping early; min_val_loss={early_stopper.min_validation_loss}, val_loss={val_epoch_loss}, patience={patience}, min_delta={min_delta}")
+                logging.info(f"Stopping early; min_val_loss={early_stopper.min_validation_loss}, "
+                             f"val_loss={val_epoch_loss}, "
+                             f"patience={patience}, min_delta={min_delta}")
                 break
 
     return optimizer
 
 
-def eval_loss(model, dataloader, device): # TODO: optional replicates, no dropout/model.train() if no rep
-    """ Uses model to generate prediction with replicates for variance
+def train_one_epoch(model, ep, trainloader, optimizer, criterion, device):
+    loss = 0
+    for _, data in enumerate(trainloader, 0):
+        # get the inputs; data is a list of [inputs, labels]
+        inputs = data[0].to(torch.float).to(device)
+        labels = data[1].to(device)
 
-    Args:
-        model (PeptideNN): trained binding prediction model
-        dataloader (DataLoader): peptide data
-        replicates (int): number of replicates for prediction
-        device (torch.device): device on which torch.Tensor will be allocated
+        # zero the parameter gradients
+        optimizer.zero_grad()
 
-    Returns:
-        Loss value
+        # forward
+        outputs = model(inputs)
 
-    """
-    criterion = nn.BCELoss()
+        batch_loss = criterion(outputs, labels.unsqueeze(-1).float())
+        batch_loss.backward()
+        optimizer.step()
 
+        loss += batch_loss.item() * inputs.size(0)
+    loss = loss / len(trainloader.sampler)
+    logging.info(f"Avg. train epoch {ep} loss: {loss}")
+    return loss
+
+def eval_one_epoch(model, ep, dataloader, criterion, device): # TODO: optional replicates, no dropout/model.train() if no rep
+    # criterion = nn.BCELoss()
     model.train() # Set Training mode to enable dropouts
     with torch.no_grad(): # Not doing backward pass, just return predictions w/ dropout
-        eval_loss = 0
+        loss = 0
 
         # Iterate over the test data and generate predictions
-        for _, data in enumerate(dataloader, 0): # add dataset label to get item tuple?
+        for _, data in enumerate(dataloader, 0):
             inputs = data[0].to(torch.float).to(device)
             labels = data[1].to(device)
 
             # forward
             outputs = model(inputs)
 
-            loss = criterion(outputs, labels.unsqueeze(-1).float())
-            eval_loss += loss.item()*inputs.size(0)
-
-    return eval_loss
+            batch_loss = criterion(outputs, labels.unsqueeze(-1).float())
+            loss += batch_loss.item()*inputs.size(0)
+    loss = loss / len(dataloader.sampler)
+    logging.info(f"Avg. validation epoch {ep} loss: {loss}")
+    return loss
 
 
 def save_model(model, fold, models_dir, configs_dir, optimizer, config):
