@@ -156,8 +156,12 @@ def train_one_epoch(model, ep, trainloader, optimizer, criterion, device):
     loss = 0
     for _, data in enumerate(trainloader, 0):
         # get the inputs; data is a list of [inputs, labels]
-        inputs = data[0].to(torch.float).to(device)
-        labels = data[1].to(device)
+        # inputs = data[0].to(torch.float).to(device)
+        # labels = data[1].to(torch.float).to(device)
+        inputs = torch.cat((data[0]), 1).to(torch.float).to(device)
+        # inputs = torch.cat(data[:5]).to(torch.float).to(device)
+        # inputs = torch.cat(tuple(map(lambda p: p.reshape(-1), data))).to(torch.float).to(device)
+        labels = data[1].to(torch.float).to(device)
 
         # zero the parameter gradients
         optimizer.zero_grad()
@@ -182,8 +186,11 @@ def eval_one_epoch(model, ep, dataloader, criterion, device): # TODO: optional r
 
         # Iterate over the test data and generate predictions
         for _, data in enumerate(dataloader, 0):
-            inputs = data[0].to(torch.float).to(device)
-            labels = data[1].to(device)
+            inputs = torch.cat((data[0]), 1).to(torch.float).to(device)
+            # inputs = data[0].to(torch.float).to(device)
+            labels = data[1].to(torch.float).to(device)
+            # inputs = torch.cat(data[:5]).to(torch.float).to(device)
+            # labels = data[6].to(device)
 
             # forward
             outputs = model(inputs)
@@ -243,7 +250,8 @@ def evaluate(model, dataloader, replicates, device): # TODO: optional replicates
 
         # Iterate over the test data and generate predictions
         for _, data in enumerate(dataloader, 0): # add dataset label to get item tuple?
-            inputs = data[0].to(torch.float).to(device)
+            inputs = torch.cat((data[0]), 1).to(torch.float).to(device)
+            # inputs = data[0].to(torch.float).to(device)
             labels = data[1].to(device)
             indices = data[2].to(device)
 

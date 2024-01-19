@@ -81,27 +81,38 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
             if folds is not None:
                 self.reassign_folds(folds=folds)
 
-        self.max_len = self._set_max_length()
-        # TODO: add a check to make sure the columns are present
+        # if (len(self.get_alleles()) > 1 and
+        if 'ha__loci' not in pep_df.columns:
+            self.pep_df.insert(
+                loc=4,
+                column='ha__loci',
+                value=self.pep_df['ha__allele'].apply(self._get_loci)
+            )
 
         self.peptide_feature_cols = [] if feat_cols is None else feat_cols
 
-        self.PepHLAEncoder = PepHLAEncoder(maxlen=self.max_len,
-                                           aa_feature_files=aa_feature_files,
-                                           hla_encoding_file=hla_encoding_file,
-                                           is_pan_allele=len(self.get_alleles()) > 1)
+        self.encoder = PepHLAEncoder(pep_lens=self.get_peptide_lengths(),
+                                     aa_feature_files=aa_feature_files,
+                                     hla_encoding_file=hla_encoding_file,
+                                     is_pan_allele=len(self.get_alleles()) > 1)
 
-    def __getitem__(self, i) -> Tuple[Tensor, float, int]:
-        return (self.PepHLAEncoder.
-                    encode(self.pep_at(i), self.allele_at(i), self.pep_features_at(i)),
-                    self.tgt_at(i),
-                    i)
+    def __getitem__(self, i):# -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, float, int]:
+        return ((self.encoder.encode_peptide(self.pep_at(i)),
+                self.encoder.encode_hla(self.allele_at(i)),
+                self.encoder.encode_pepfeats(self.pep_features_at(i)),
+                self.encoder.encode_loci(self.loci_at(i)),
+                self.encoder.encode_pep_len(self.pep_at(i))),
+                self.tgt_at(i),
+                i)
 
     def pep_at(self, i: int) -> str:
         return self.pep_df.at[i, 'ha__pep']
 
     def allele_at(self, i: int) -> str:
         return self.pep_df.at[i, 'ha__allele']
+
+    def loci_at(self, i: int) -> str:
+        return self.pep_df.at[i, 'ha__loci']
 
     def pep_features_at(self, i: int) -> np.ndarray:
         return self.pep_df[self.peptide_feature_cols].iloc[i].values
@@ -114,12 +125,19 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
     #     alleles = self.pep_df['ha__allele']
     #     alleles_clean = [re.sub(replace_regex, "", a) for a in alleles]
     #     return alleles_clean
+    def _get_loci(self, allele):
+        if 'HLA-' in allele:
+            return allele[4]
+        else:
+            return allele[0]
 
     def set_feat_cols(self, feat_cols: List[str] = []):
         self.peptide_feature_cols = feat_cols
 
     def feature_dimensions(self):
-        return self.PepHLAEncoder.feature_dimensions + self.peptide_features_dim()
+        # return self.__getitem__(0)[0]#.shape[0]
+        return torch.cat((self.__getitem__(0)[0][:5])).shape[0]
+        # return self.PepHLAEncoder.feature_dimensions + self.peptide_features_dim()
 
     def peptide_features_dim(self):
         return len(self.peptide_feature_cols)

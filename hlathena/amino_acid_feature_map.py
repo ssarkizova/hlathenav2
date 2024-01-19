@@ -3,7 +3,7 @@ import os
 from typing import List
 import pandas as pd
 
-from hlathena.definitions import AMINO_ACIDS
+from hlathena.definitions import AMINO_ACIDS, AMINO_ACIDS_EXT
 
 
 class AminoAcidFeatureMap:
@@ -48,7 +48,7 @@ class AminoAcidFeatureMap:
         # TODO: need to handle properties with overlapping names, e.g. similarities s.a. PMBEC and Blosum? input files as dict with name as prefix for each col?
         aa_feature_df = pd.concat(feature_dfs, axis=1, join='inner')
         # Ensure the rows have the same order as the onehot encoding        
-        aa_feature_df = aa_feature_df.loc[AMINO_ACIDS,:]
+        aa_feature_df = aa_feature_df.loc[AMINO_ACIDS_EXT,:]
 
         return aa_feature_df
     
