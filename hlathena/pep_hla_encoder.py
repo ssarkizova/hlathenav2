@@ -47,9 +47,7 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
 
     def encode_peptide(self, pep):
 
-        # TODO:
-        for i in range(max(self.pep_lens) - len(pep)):
-            pep += '-'
+        pep += (max(self.pep_lens) - len(pep)) * '-'
 
         peptide = [list(pep)]
         encoder = OneHotEncoder(
