@@ -6,7 +6,7 @@ import importlib_resources
 
 import numpy as np
 import pandas as pd
-import umap
+import umap.umap_ as umap
 from sklearn.cluster import DBSCAN
 from collections import Counter
 

@@ -10,9 +10,7 @@ from torch import Tensor
 from torch.utils.data import Dataset
 
 # from hlathena import references # cleo note: causing circular import error, need to remove or rearrange imports
-from hlathena.definitions import AMINO_ACIDS
-from hlathena.definitions import INVERSE_AA_MAP
-from hlathena.definitions import PEP_LENS
+from hlathena.definitions import AMINO_ACIDS, AMINO_ACIDS_EXT, INVERSE_AA_MAP, PEP_LENS
 from hlathena.pep_encoder import PepEncoder
 
 
@@ -138,7 +136,7 @@ class PeptideDataset(Dataset):
         if encode:
             self.encoded_peptides: List[Tensor] = PepEncoder._encode_peptides(self.pep_df['ha__pep'].values)
             # self.encoded_alleles: List[Tensor] = HLAEncoder.encode(pep_df['ha__allele'])
-            self.feature_dimensions = len(AMINO_ACIDS)*self.pep_df['ha__pep_len'][0] # TO DO harcoded for one-hot only, need to get the proper dims from aafeatmap
+            self.feature_dimensions = len(AMINO_ACIDS_EXT)*self.pep_df['ha__pep_len'][0] # TO DO harcoded for one-hot only, need to get the proper dims from aafeatmap
         # Init peptide features dataframe
         # self.peptide_feats_df = self.pep_df[['ha__pep'] + feat_cols].copy()
         # self.peptide_feats_df.drop(columns='ha__pep', inplace=True)    # hmm why?, is it because we are making features?

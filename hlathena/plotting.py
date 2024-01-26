@@ -93,16 +93,17 @@ def plot_logo(pep_df: pd.DataFrame,
                 ax = plt.subplot2grid((num_rows, num_cols), (num_row, num_col))
                 # peps = d[pep_col]
                 peps = [pp for pp in d[pep_col] if len(pp) == length]
+                if not len(peps): continue
                 logo_df = get_logo_df(peps, length)
-                logomaker.Logo(logo_df, ax=ax, show_spines=False);
-                ax.set_xticks([]);
-                ax.set_yticks([]);
+                logomaker.Logo(logo_df, ax=ax, show_spines=False)
+                ax.set_xticks([])
+                ax.set_yticks([])
                 ax.set_title(f'{label}, Length {length} (n={len(peps)})')
         else: 
             peps = [pp for pp in peptides if len(pp) == length]
             logo_df = get_logo_df(peps, length)
             logo = logomaker.Logo(logo_df)
-            logo.ax.set_title(f'Length {length} (n={len(peps)})');
+            logo.ax.set_title(f'Length {length} (n={len(peps)})')
     
     
     else:
@@ -125,7 +126,7 @@ def plot_logo(pep_df: pd.DataFrame,
 
             ax.set_xticks([]);
             ax.set_yticks([]);
-            ax.set_title('Length {0} n={1}'.format(l, len(peps)));
+            ax.set_title('Length {0} (n={1})'.format(l, len(peps)));
 
         # style and save figure
         fig.tight_layout()
