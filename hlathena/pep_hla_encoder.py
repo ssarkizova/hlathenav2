@@ -11,10 +11,11 @@ from torch import Tensor
 import importlib_resources
 
 from hlathena.amino_acid_feature_map import AminoAcidFeatureMap
-from hlathena.definitions import AMINO_ACIDS, AMINO_ACIDS_EXT, LOCI
+from hlathena.definitions import AMINO_ACIDS, AMINO_ACIDS_EXT, LOCI, AA_MAPPING, BOS_TOKEN, BOS_DICT
 
 
 class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just return pep + pep feats tensor
+
 
     def __init__(self,
                  pep_lens: List[int],
@@ -29,6 +30,7 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
             hla_encoding_file = importlib_resources.files('hlathena').joinpath('data').joinpath('hla_seqs_onehot.csv')
 
         self.hla_encoding = pd.read_csv(hla_encoding_file, index_col=allele_col_name)
+        self.hla_mapping = {hla: i+22 for i, hla in enumerate(self.hla_encoding.index)}
         # self.pep_len = pep_length
         # self.maxlen = maxlen
         self.pep_lens = pep_lens
@@ -61,6 +63,19 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
             aafeatmat_bd: np.ndarray = np.kron(np.eye(len(pep), dtype=int), self.aa_feature_map.aa_feature_map)
             encoded = np.concatenate((encoded, (encoded @ aafeatmat_bd)))
         return torch.as_tensor(encoded).float()
+
+    def enumerate_pep(self, pep):
+        padded_seq = pep.ljust(max(self.pep_lens), '-')
+        return torch.tensor([AA_MAPPING[aa] for aa in padded_seq])
+
+    def enumerate_pHLA(self, pep, hla):
+        # first_last_four = seq[:4] + seq[-4:]
+        first_last_four_enumerated = torch.tensor([AA_MAPPING[aa] for aa in pep[:4]+pep[-4:]])
+        hla_enumerated = torch.as_tensor([self.hla_mapping[hla]])
+        return torch.cat((first_last_four_enumerated, hla_enumerated))
+
+    def BOS_tensor(self):
+        return torch.tensor([BOS_DICT[BOS_TOKEN]])
 
     def get_loci(self, allele):
         if 'HLA-' in allele:

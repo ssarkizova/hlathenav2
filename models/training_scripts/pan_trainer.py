@@ -1,6 +1,7 @@
 from typing import List, Dict
 from hlathena.peptide_dataset_train import PeptideDatasetTrain
 from hlathena import peptide_nn
+from hlathena import peptide_transformer
 from hlathena.training_evaluation import TrainingEvaluation
 
 import torch.utils.data as torch_data
@@ -484,7 +485,7 @@ def train_preset_split():
                 test_subsampler = peptide_nn.PeptideRandomSampler([i for i in range(len(test_ds))], seed)
                 val_subsampler = peptide_nn.PeptideRandomSampler([i for i in range(len(valid_ds))], seed)
 
-                num_workers = max(1, len(os.sched_getaffinity(0)))
+                num_workers = 4#max(1, len(os.sched_getaffinity(0)))
                 prefetch_factor = 16 #2**num_workers
                 pin_memory = True
                 # 16 workers 16 prefetch pin memory True seed 123 2 reps = 1:16x3 min from device = cuda to stat printout
@@ -520,28 +521,54 @@ def train_preset_split():
                                                     pin_memory=pin_memory,
                                                     prefetch_factor=prefetch_factor,
                                                     persistent_workers=True)
+                src_vocab1 = 22
+                src_vocab2 = 15000
+                model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8,
+                                                         dropout=0.1,
+                                                         num_classes=2)
 
-                feature_dims = train_ds.feature_dimensions()
-                assert(feature_dims == test_ds.feature_dimensions() == valid_ds.feature_dimensions())
-
-                model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
+                # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
                 if torch.cuda.device_count() > 1:
                     logging.info(f"Let's use {torch.cuda.device_count()} GPUs!")
                     model = nn.DataParallel(model)
                 model.to(device)
                 logging.info(f"Device: {str(device)}")
-                optimizer_dict = peptide_nn.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, patience=4)
+                # optimizer_dict = peptide_nn.train(model, trainloader, args.learning_rate, args.epochs, device, valloader)
+                optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device,
+                                                           valloader)
 
                 # Create model and train
-                model_config = create_config_dict(device=device, epochs=args.epochs, lr=args.learning_rate, dr=args.dropout_rate,
+                model_config = create_config_dict(device=device, epochs=args.epochs, lr=args.learning_rate,
+                                                  dr=args.dropout_rate,
                                                   batch_size=args.batch_size, decoy_mul=args.decoy_mul,
                                                   eval_decoy_ratio=args.decoy_ratio,
-                                                  fold=fold, aa_features=aa_feature_files,
+                                                  fold=fold, aa_features=args.aa_feature_folder,
                                                   featname=featname, pepfeats_dict=pep_feature_sets_dict, seed=seed)
 
-                peptide_nn.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
+                peptide_transformer.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
 
-                _, targets, indices, preds = peptide_nn.evaluate(model, testloader, args.pred_replicates, device)
+                _, targets, indices, preds = peptide_transformer.evaluate(model, testloader, args.pred_replicates, device)
+                # feature_dims = train_ds.feature_dimensions()
+                # assert(feature_dims == test_ds.feature_dimensions() == valid_ds.feature_dimensions())
+                #
+                # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
+                # if torch.cuda.device_count() > 1:
+                #     logging.info(f"Let's use {torch.cuda.device_count()} GPUs!")
+                #     model = nn.DataParallel(model)
+                # model.to(device)
+                # logging.info(f"Device: {str(device)}")
+                # optimizer_dict = peptide_nn.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, patience=4)
+                #
+                # # Create model and train
+                # model_config = create_config_dict(device=device, epochs=args.epochs, lr=args.learning_rate, dr=args.dropout_rate,
+                #                                   batch_size=args.batch_size, decoy_mul=args.decoy_mul,
+                #                                   eval_decoy_ratio=args.decoy_ratio,
+                #                                   fold=fold, aa_features=aa_feature_files,
+                #                                   featname=featname, pepfeats_dict=pep_feature_sets_dict, seed=seed)
+                #
+                # peptide_nn.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
+                #
+                # _, targets, indices, preds = peptide_nn.evaluate(model, testloader, args.pred_replicates, device)
                 targets = [t.item() for t in torch.hstack(targets).cpu()]
                 indices = [i.item() for i in torch.hstack(indices).cpu()]
                 preds = torch.vstack(preds).cpu()
@@ -689,13 +716,19 @@ def trainer(args,
             except TypeError:
                 valloader = None
 
-            model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
+            src_vocab1 = 22
+            src_vocab2 = 15000
+            model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1,
+                                     num_classes=2)
+
+            # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
             if torch.cuda.device_count() > 1:
                 logging.info(f"Let's use {torch.cuda.device_count()} GPUs!")
                 model = nn.DataParallel(model)
             model.to(device)
             logging.info(f"Device: {str(device)}")
-            optimizer_dict = peptide_nn.train(model, trainloader, args.learning_rate, args.epochs, device, valloader)
+            # optimizer_dict = peptide_nn.train(model, trainloader, args.learning_rate, args.epochs, device, valloader)
+            optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device, valloader)
 
             # Create model and train
             model_config = create_config_dict(device=device, epochs=args.epochs, lr=args.learning_rate, dr=args.dropout_rate,
@@ -703,9 +736,9 @@ def trainer(args,
                                               fold=fold, aa_features=args.aa_feature_folder,
                                               featname=featname, pepfeats_dict=featsets_dict, seed=seed)
 
-            peptide_nn.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
+            peptide_transformer.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
 
-            _, targets, indices, preds = peptide_nn.evaluate(model, testloader, args.pred_replicates, device)
+            _, targets, indices, preds = peptide_transformer.evaluate(model, testloader, args.pred_replicates, device)
             targets = [t.item() for t in torch.hstack(targets).cpu()]
             indices = [i.item() for i in torch.hstack(indices).cpu()]
             preds = torch.vstack(preds).cpu()
@@ -757,5 +790,5 @@ def trainer(args,
 
 
 if __name__ == "__main__":
-    main()
-    # train_preset_split()
+    # main()
+    train_preset_split()

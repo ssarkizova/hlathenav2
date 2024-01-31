@@ -97,13 +97,19 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
                                      is_pan_allele=len(self.get_alleles()) > 1)
 
     def __getitem__(self, i):# -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, float, int]:
-        return ((self.encoder.encode_peptide(self.pep_at(i)),
-                self.encoder.encode_hla(self.allele_at(i)),
-                self.encoder.encode_pepfeats(self.pep_features_at(i)),
-                self.encoder.encode_loci(self.loci_at(i)),
-                self.encoder.encode_pep_len(self.pep_at(i))),
-                self.tgt_at(i),
+        pep, hla, tgt = self.pep_at(i), self.allele_at(i), self.tgt_at(i)
+        return ((self.encoder.enumerate_pep(pep),
+                self.encoder.enumerate_pHLA(pep, hla),
+                self.encoder.BOS_tensor()),
+                tgt,
                 i)
+        # return ((self.encoder.encode_peptide(self.pep_at(i)),
+        #         self.encoder.encode_hla(self.allele_at(i)),
+        #         self.encoder.encode_pepfeats(self.pep_features_at(i)),
+        #         self.encoder.encode_loci(self.loci_at(i)),
+        #         self.encoder.encode_pep_len(self.pep_at(i))),
+        #         self.tgt_at(i),
+        #         i)
 
     def pep_at(self, i: int) -> str:
         return self.pep_df.at[i, 'ha__pep']

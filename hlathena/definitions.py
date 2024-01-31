@@ -12,6 +12,16 @@ AMINO_ACIDS_EXT = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', '
 
 LOCI = ['A','B','C','G']
 
+AA_MAPPING = {
+        'A': 1, 'R': 2, 'N': 3, 'D': 4, 'C': 5,
+        'Q': 6, 'E': 7, 'G': 8, 'H': 9, 'I': 10,
+        'L': 11, 'K': 12, 'M': 13, 'F': 14, 'P': 15,
+        'S': 16, 'T': 17, 'W': 18, 'Y': 19, 'V': 20, '-': 21
+    }
+
+BOS_TOKEN = "<BOS>"
+BOS_DICT = {"<BOS>": 0}
+
 # AMINO_ACIDS_EXT = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y', '.', '-']
 
 ## Map of amino acid to numeric values
