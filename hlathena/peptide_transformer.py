@@ -440,7 +440,7 @@ def initialize_param(model):
 
 
 class OverallModel(nn.Module):
-    def __init__(self, src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1, num_classes=2):
+    def __init__(self, src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1):
         super(OverallModel, self).__init__()
 
         c = copy.deepcopy
@@ -453,9 +453,12 @@ class OverallModel(nn.Module):
         # anchor block
         self.pephla_transformer = Encoder_NoClassifier(nn.Sequential(Embeddings(d_model, src_vocab2), c(position)),
                                                        Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), N))
+        # self.final_transformer = EncoderClassifier_NoEmbedPos(
+        #     Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), N),
+        #     Softmax_Classifier(d_model, num_classes))
         self.final_transformer = EncoderClassifier_NoEmbedPos(
             Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), N),
-            Softmax_Classifier(d_model, num_classes))
+            Sigmoid_Classifier(d_model))
 
         self.bos_token_layer = nn.Sequential(Embeddings(d_model, src_vocab1), c(position))
         # self.peptide_transformer = make_model(src_vocab1, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1)
@@ -487,7 +490,7 @@ class OverallModel(nn.Module):
         concat_outputs = torch.cat((bos_outputs, pep_outputs, pephla_outputs), dim=1)
 
         # question: does this go here haha (the initialize param)
-        initialize_param(self.final_transformer)
+        # initialize_param(self.final_transformer)
         # self.final_transformer.train()
         return self.final_transformer(concat_outputs)
 
@@ -563,7 +566,8 @@ def train(model, trainloader, learning_rate, epochs, device, valloader=None, pat
         Model optimizer
 
     """
-    criterion = nn.CrossEntropyLoss()
+    # criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCELoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     early_stopper = EarlyStopper(patience=patience, min_delta=min_delta)
 
@@ -596,7 +600,7 @@ def train_one_epoch(model, ep, trainloader, optimizer, criterion, device):
         # forward
         outputs = model(pep_enumerated, AA_MAPPING['-'], pephla_enumerated, bos_tensor)
 
-        batch_loss = criterion(outputs, F.one_hot(labels).float())
+        batch_loss = criterion(outputs, labels.unsqueeze(-1).float())
         batch_loss.backward(retain_graph=True)
         optimizer.step()
 
@@ -622,7 +626,7 @@ def eval_one_epoch(model, ep, dataloader, criterion, device): # TODO: optional r
             # forward
             outputs = model(pep_enumerated, AA_MAPPING['-'], pephla_enumerated, bos_tensor)
 
-            batch_loss = criterion(outputs, F.one_hot(labels).float())
+            batch_loss = criterion(outputs, labels.unsqueeze(-1).float())
             loss += batch_loss.item() * labels.size(0)
     loss = loss / len(dataloader.sampler)
     logging.info(f"Avg. validation epoch {ep} loss: {loss}")
@@ -694,8 +698,8 @@ def evaluate(model, dataloader, replicates, device): # TODO: optional replicates
             predictions = torch.zeros(labels.shape[0], replicates)
             for j in range(0,replicates):
                 outputs = model(pep_enumerated, AA_MAPPING['-'], pephla_enumerated, bos_tensor)
-                # logits = outputs.data
-                predictions[:,j] = torch.argmax(outputs.data, dim=1)
+                logits = outputs.data
+                predictions[:,j] = logits.squeeze() #torch.argmax(outputs.data, dim=1)
 
             prediction_lst.append(predictions)
 

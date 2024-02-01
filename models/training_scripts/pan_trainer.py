@@ -524,8 +524,8 @@ def train_preset_split():
                 src_vocab1 = 22
                 src_vocab2 = 15000
                 model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8,
-                                                         dropout=0.1,
-                                                         num_classes=2)
+                                                         dropout=0.1)
+                peptide_transformer.initialize_param(model)
 
                 # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
                 if torch.cuda.device_count() > 1:
@@ -718,8 +718,8 @@ def trainer(args,
 
             src_vocab1 = 22
             src_vocab2 = 15000
-            model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1,
-                                     num_classes=2)
+            model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1)
+            peptide_transformer.initialize_param(model)
 
             # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
             if torch.cuda.device_count() > 1:
