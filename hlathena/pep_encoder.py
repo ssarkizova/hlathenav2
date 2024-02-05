@@ -39,7 +39,7 @@ class PepEncoder:
             sequences = [list(s) for s in sequences]
         
         encoder = preprocessing.OneHotEncoder(
-            categories=[AMINO_ACIDS_EXT] * pep_len)
+            categories=[AMINO_ACIDS] * pep_len)
         encoder.fit(sequences)
         encoded = encoder.transform(sequences).toarray()
         return encoded
@@ -100,7 +100,7 @@ class PepEncoder:
 
         encoded = encoded.reshape(
             #self.peptide_length, self.aa_feature_map.feature_count)
-            -1, len(AMINO_ACIDS_EXT)) # TO DO: dims for anything other than onehot?
+            -1, len(AMINO_ACIDS)) # TO DO: dims for anything other than onehot?
         dense = encoded.argmax(-1)
         if len(dense.shape) > 1:
             peptide = [''.join([INVERSE_AA_MAP[aa.item()]

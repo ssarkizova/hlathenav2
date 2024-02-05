@@ -20,7 +20,7 @@ markers = list(plt.Line2D.filled_markers)
 
 
 # SISI - we should have a version for this plotting function that takes in the peptide dataset class as well
-def plot_length(pep_df: pd.DataFrame, 
+def plot_length(pep_df: PeptideDataset,
                 pep_col: str = 'seq', 
                 label_col: str = None) -> None:
     """Plot the distribution of peptide lengths.

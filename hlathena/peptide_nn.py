@@ -160,7 +160,6 @@ def train_one_epoch(model, ep, trainloader, optimizer, criterion, device):
         # labels = data[1].to(torch.float).to(device)
         inputs = torch.cat((data[0]), 1).to(torch.float).to(device)
         # inputs = torch.cat(data[:5]).to(torch.float).to(device)
-        # inputs = torch.cat(tuple(map(lambda p: p.reshape(-1), data))).to(torch.float).to(device)
         labels = data[1].to(torch.float).to(device)
 
         # zero the parameter gradients
