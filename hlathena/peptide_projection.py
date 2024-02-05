@@ -13,7 +13,8 @@ from collections import Counter
 from hlathena.definitions import AMINO_ACIDS, aa_feature_file_Kidera
 from hlathena.peptide_dataset import PeptideDataset
 from hlathena.amino_acid_feature_map import AminoAcidFeatureMap
-from hlathena.pep_encoder import PepEncoder
+from hlathena.pep_hla_encoder import PepHLAEncoder
+
 
 def PCA_numpy_SVD(X, rowvar=False):
     """Computes the PCA of a matrix using SVD.
@@ -88,8 +89,8 @@ def PCA_encode(peptides: Union[List[str], PeptideDataset],
         
     if aa_feature_map is None:
         aa_feature_map = AminoAcidFeatureMap(aa_feature_files=[aa_feature_file_Kidera])
-    
-    encoded_peptides = PepEncoder.get_encoded_peps(peptides, aa_feature_map)
+
+    encoded_peptides = PepHLAEncoder.get_encoded_peps(peptides, aa_feature_map)
 
     ###  Weight positions by entropy
     data = importlib_resources.files('hlathena').joinpath('data').joinpath('motif_entropies')
@@ -124,9 +125,9 @@ def PCA_encode(peptides: Union[List[str], PeptideDataset],
     return peps_wE_pca_nocenter_df
 
 
-def get_umap_embedding(feature_matrix: pd.DataFrame, \
-                       n_neighbors: int = 5, \
-                       min_dist: float = 0.5, \
+def get_umap_embedding(feature_matrix: pd.DataFrame,
+                       n_neighbors: int = 5,
+                       min_dist: float = 0.5,
                        random_state: int = 42):
     """Create UMAP embedding dataframe for peptides.
 

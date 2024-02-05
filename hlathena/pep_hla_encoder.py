@@ -14,12 +14,10 @@ from hlathena.amino_acid_feature_map import AminoAcidFeatureMap
 from hlathena.definitions import AMINO_ACIDS, AMINO_ACIDS_EXT, LOCI
 
 
-class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just return pep + pep feats tensor
+class PepHLAEncoder:
 
     def __init__(self,
                  pep_lens: List[int],
-                 # maxlen: int = 11,
-                 # pep_length: int,
                  aa_feature_files: List[os.PathLike] = None,
                  hla_encoding_file: os.PathLike = None,
                  allele_col_name: str = 'mhc',
@@ -29,8 +27,6 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
             hla_encoding_file = importlib_resources.files('hlathena').joinpath('data').joinpath('hla_seqs_onehot.csv')
 
         self.hla_encoding = pd.read_csv(hla_encoding_file, index_col=allele_col_name)
-        # self.pep_len = pep_length
-        # self.maxlen = maxlen
         self.pep_lens = pep_lens
         self.is_pan_allele = is_pan_allele
 
@@ -87,3 +83,74 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
         if len(self.pep_lens) > 1:
             encoding = torch.cat((encoding, self.encode_pep_len(pep)))
         return encoding
+
+    @staticmethod
+    def encode_onehot(sequences, pep_len) -> np.ndarray:
+        """One hot encode peptides
+
+        Returns:
+            np.ndarray: one hot encoded peptide set
+        """
+        if isinstance(sequences[0], str):
+            sequences = [list(s) for s in sequences]
+
+        encoder = OneHotEncoder(
+            categories=[AMINO_ACIDS] * pep_len)
+        encoder.fit(sequences)
+        encoded = encoder.transform(sequences).toarray()
+        return encoded
+
+    @staticmethod
+    def get_encoded_peps(sequences,
+                         aafeatmat: AminoAcidFeatureMap = None) -> pd.DataFrame:
+        """
+        Returns:
+            pd.DataFrame: Amino acid featurization of peptides in the class
+        """
+
+        # Split up each peptide string into individual amino acids
+        if isinstance(sequences[0], str):
+            sequences = [list(s) for s in sequences]
+
+        # Input peptide sequences need to be of the same length - TO DO - handle multiple lengths
+        lens = [len(s) for s in sequences]
+        pep_len = lens[0]
+        assert (all(l == pep_len for l in lens))  # TO DO: integrate error handling...
+
+        onehot_encoded: np.ndarray = PepHLAEncoder.encode_onehot(sequences, pep_len)
+
+        onehot_only = not aafeatmat
+
+        if onehot_only:
+            peps_enc = pd.DataFrame(onehot_encoded)  # , index=self.peptides)  # SISI - TO DO index on peps needed...?
+        else:
+            aamap = aafeatmat.aa_feature_map
+            # Block diagonal aafeatmat
+            aafeatmat_bd: np.ndarray = np.kron(
+                np.eye(pep_len, dtype=int), aamap)
+            # Feature encoding (@ matrix multiplication)
+            feat_names: List[List[str]] = list(np.concatenate(
+                [(f'p{i + 1}_' + aamap.columns.values).tolist()
+                 for i in range(pep_len)]).flat)
+            peps_enc = pd.DataFrame(onehot_encoded @ aafeatmat_bd,
+                                    columns=feat_names)  # ,
+            # index=self.peptides)  # SISI - TO DO index on peps needed...?
+
+        return peps_enc
+
+    @staticmethod
+    def encode_peptides(sequences,
+                         aafeatmat: AminoAcidFeatureMap = None) -> List[Tensor]:
+        """Return featurized peptides
+
+        Returns:
+            List[Tensor]: featurized peptide tensors
+        """
+        encoded: pd.DataFrame = PepHLAEncoder.get_encoded_peps(sequences, aafeatmat)
+
+        # TO DO: is there a more elegant way of creating tensors?...
+        encoded_tensors = []
+        for i in range(len(sequences)):
+            encoded_peptide: Tensor = torch.as_tensor(encoded.iloc[i].values).float()
+            encoded_tensors.append(encoded_peptide)
+        return encoded_tensors

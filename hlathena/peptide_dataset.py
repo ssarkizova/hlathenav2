@@ -10,7 +10,7 @@ from torch import Tensor
 from torch.utils.data import Dataset
 
 from hlathena.definitions import AMINO_ACIDS, INVERSE_AA_MAP, PEP_LENS
-from hlathena.pep_encoder import PepEncoder
+from hlathena.pep_hla_encoder import PepHLAEncoder
 
 class PeptideDataset(Dataset):
     """
@@ -107,22 +107,20 @@ class PeptideDataset(Dataset):
         self._check_peps_present()
         self._check_valid_sequences()
 
-        if 'ha__allele' in pep_df.columns:
-            self.format_allele_names()  # TO DO: E.g.: HLA*A01:01  -> A0101; might be good to save an output file with the name changes that we made -> Logger
-            self._check_alleles()  # TO DO: supported pre-processed alleles vs alleles provided as sequence...
+        # if 'ha__allele' in pep_df.columns:
+        #     self.format_allele_names()  # TO DO: E.g.: HLA*A01:01  -> A0101; might be good to save an output file with the name changes that we made -> Logger
+        #     self._check_alleles()  # TO DO: supported pre-processed alleles vs alleles provided as sequence...
 
         # TODO: sub below with the pephla_encoder class
         self.encode = encode
         if self.encode:
-            self.encoded_peptides: List[Tensor] = PepEncoder._encode_peptides(self.pep_df['ha__pep'].values)
-            # self.encoded_alleles: List[Tensor] = HLAEncoder.encode(pep_df['ha__allele'])
-            self.feature_dimensions = len(AMINO_ACIDS) * self.pep_df['ha__pep_len'][
-                0]  # TO DO harcoded for one-hot only, need to get the proper dims from aafeatmap
+            self.encoded_peptides: List[Tensor] = PepHLAEncoder.encode_peptides(self.pep_df['ha__pep'].values)
+            self.feature_dimensions = len(AMINO_ACIDS) * self.pep_df['ha__pep_len'][0]  # TODO harcoded for one-hot only, need to get the proper dims from aafeatmap
 
     def __len__(self) -> int:
         return self.pep_df.shape[0]
 
-    # TO DO - does the output spec work if only one thing is retured but the -> says tuple?
+    # TODO - does the output spec work if only one thing is retured but the -> says tuple?
     def __getitem__(self, idx):
         if not self.encode:
             return self.pep_df.iloc[idx]  # TODO: what do we want this to do...?
