@@ -44,7 +44,7 @@ class PeptideDataset(Dataset):
         super().__init__()
 
         # Create from peptide list or dataframe
-        if (np.ndim(pep_df) <= 1) or (pep_df.shape[1] == 1):
+        if isinstance(pep_df, list) or (np.ndim(pep_df) <= 1) or (pep_df.shape[1] == 1):
             # Assume list of peptides provided
             pep_df = pd.DataFrame(pep_df)
             pep_df.columns = ['pep']
@@ -146,7 +146,7 @@ class PeptideDataset(Dataset):
         Returns:
             List[int]: List of unique peptide lengths
         """
-        return np.unique(self.pep_df['ha__pep_len'])
+        return np.unique(self.pep_df['ha__pep_len']).tolist()
 
     def get_alleles(self) -> Optional[List[str]]:
         """
@@ -157,7 +157,7 @@ class PeptideDataset(Dataset):
 
         """
         if 'ha__allele' in self.pep_df.columns:
-            return np.unique(self.pep_df['ha__allele'])
+            return np.unique(self.pep_df['ha__allele']).tolist()
         else:
             return None
 
@@ -170,7 +170,7 @@ class PeptideDataset(Dataset):
 
         """
         if 'ha__allele' in self.pep_df.columns:
-            tbl = pd.DataFrame(self.pep_df.groupby(["allele"]).size())
+            tbl = pd.DataFrame(self.pep_df.groupby(["ha__allele"]).size())
             tbl.columns = ['n_pep']
             return tbl
         else:
