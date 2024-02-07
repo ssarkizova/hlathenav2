@@ -65,26 +65,6 @@ class SublayerConnection(nn.Module):
         "Apply residual connection to any sublayer with the same size."
         return x + self.dropout(sublayer(self.norm(x)))
 
-
-# old one
-'''class Encoder(nn.Module):
-    "Core encoder is a stack of N layers"
-    def __init__(self, layer, N):
-        super(Encoder, self).__init__()
-        self.layers = clones(layer, N)
-        self.norm = LayerNorm(layer.size)
-
-    def forward(self, x, mask=None):
-        "Pass the input through each layer in turn."
-        if mask == None:
-            for layer in self.layers:
-                x = layer(x)
-        else: 
-            for layer in self.layers:
-                x = layer(x, mask)
-        return self.norm(x)'''
-
-
 # new one
 class Encoder(nn.Module):
     "Core encoder is a stack of N layers"
@@ -99,26 +79,6 @@ class Encoder(nn.Module):
         for layer in self.layers:
             x = layer(x, mask)
         return self.norm(x)
-
-
-# old one
-'''class EncoderLayer(nn.Module):
-    "Encoder is made up of self-attn and feed forward"
-    def __init__(self, size, self_attn, feed_forward, dropout):
-        super(EncoderLayer, self).__init__()
-        self.self_attn = self_attn
-        self.feed_forward = feed_forward
-        self.sublayer = clones(SublayerConnection(size, dropout), 2)
-        self.size = size
-
-    def forward(self, x, mask=None):
-        "Follow the connections of the encoder layer."
-        if mask == None:
-            x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x))
-        else: 
-            x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask))
-        return self.sublayer[1](x, self.feed_forward)'''
-
 
 class EncoderLayer(nn.Module):
     "Encoder is made up of self-attn and feed forward (defined below)"
@@ -144,47 +104,7 @@ def attention(query, key, value, mask=None, dropout=None):
     p_attn = scores.softmax(dim=-1)
     if dropout is not None:
         p_attn = dropout(p_attn)
-    '''print("###############################")
-    print(p_attn.shape)
-    print(p_attn[0][0])
-    print("###############################")
-    print(p_attn[0][1])
-    print("###############################")
-    print(p_attn[0][2])
-    print("###############################")'''
     return torch.matmul(p_attn, value), p_attn
-
-
-# old one
-'''class MultiHeadedAttention(nn.Module):
-    def __init__(self, h, d_model, dropout=0.1):
-        "Take in model size and number of heads."
-        super(MultiHeadedAttention, self).__init__()
-        assert d_model % h == 0
-        # We assume d_v always equals d_k
-        self.d_k = d_model // h
-        self.h = h
-        self.linears = clones(nn.Linear(d_model, d_model), 4)
-        self.attn = None
-        self.dropout = nn.Dropout(p=dropout)
-
-    def forward(self, query, key, value, mask=None):
-        "Implements Figure 2"
-        if mask is not None:
-            # Same mask applied to all h heads.
-            mask = mask.unsqueeze(1)
-        nbatches = query.size(0)
-
-        # 1) Do all the linear projections in batch from d_model => h x d_k 
-        query, key, value = [l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2) for l, x in zip(self.linears, (query, key, value))]
-
-        # 2) Apply attention on all the projected vectors in batch. 
-        x, self.attn = attention(query, key, value, mask=mask, dropout=self.dropout)
-
-        # 3) "Concat" using a view and apply a final linear. 
-        x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.h * self.d_k)
-        return self.linears[-1](x)'''
-
 
 # new one
 class MultiHeadedAttention(nn.Module):
@@ -323,7 +243,6 @@ class EncoderClassifier_NoEmbedPos(nn.Module):
 
     def forward(self, src, mask=None):
         return self.classifier(self.encoder(src, mask))
-
 
 class Sigmoid_Classifier(nn.Module):
     "A simple classification layer for binary classification."
@@ -494,7 +413,6 @@ class OverallModel(nn.Module):
         # self.final_transformer.train()
         return self.final_transformer(concat_outputs)
 
-
 ##################################
 
 
@@ -527,9 +445,12 @@ class NoamOpt:
             (self.model_size ** (-0.5) *
              min(step ** (-0.5), step * self.warmup ** (-1.5)))
 
+    def zero_grad(self):
+        self.optimizer.zero_grad()
+
 
 def get_std_opt(model):
-    return NoamOpt(model.src_embed[0].d_model, 2, 4000,
+    return NoamOpt(model.d_model, 2, 1000,
                    torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
 
 class EarlyStopper:
