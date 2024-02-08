@@ -137,7 +137,7 @@ class PeptideDataset(Dataset):
             List[str]: List of peptides
 
         """
-        return self.pep_df['ha__pep'].values
+        return self.pep_df['ha__pep'].values.tolist()
 
     def get_peptide_lengths(self) -> List[int]:
         """
@@ -161,7 +161,7 @@ class PeptideDataset(Dataset):
         else:
             return None
 
-    def get_allele_peptide_counts(self) -> Optional[Union[pd.DataFrame, None]]:  # TODO: Change to Optional
+    def get_allele_peptide_counts(self) -> Optional[pd.DataFrame]:
         """
         Get count of peptides per allele
 
@@ -176,7 +176,7 @@ class PeptideDataset(Dataset):
         else:
             return None
 
-    def get_allele_peptide_length_counts(self) -> Union[List[str], None]:
+    def get_allele_peptide_length_counts(self) -> Optional[pd.DataFrame]:
         """
         Get count of peptides per length
 
