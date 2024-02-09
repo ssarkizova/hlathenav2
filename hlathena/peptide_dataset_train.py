@@ -97,12 +97,20 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
                                      is_pan_allele=len(self.get_alleles()) > 1)
 
     def __getitem__(self, i):# -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, float, int]:
+        # # For Transformer V2
         pep, hla, tgt = self.pep_at(i), self.allele_at(i), self.tgt_at(i)
-        return ((self.encoder.enumerate_pep(pep),
-                self.encoder.enumerate_pHLA(pep, hla),
-                self.encoder.BOS_tensor()),
+        return ((self.encoder.encode_peptide_notflat_with_BOS(pep),
+                 self.encoder.encode_hla_fullseq_notflat(hla)),
                 tgt,
                 i)
+
+        # For Transformer V1
+        # return ((self.encoder.enumerate_pep(pep),
+        #         self.encoder.enumerate_pHLA(pep, hla),
+        #         self.encoder.BOS_tensor()),
+        #         tgt,
+        #         i)
+        # For PeptideNN2
         # return ((self.encoder.encode_peptide(self.pep_at(i)),
         #         self.encoder.encode_hla(self.allele_at(i)),
         #         self.encoder.encode_pepfeats(self.pep_features_at(i)),

@@ -244,6 +244,41 @@ class EncoderClassifier_NoEmbedPos(nn.Module):
     def forward(self, src, mask=None):
         return self.classifier(self.encoder(src, mask))
 
+
+class ProjectionToSameDim(nn.Module):
+    def __init__(self, peptide_dim, hla_dim, proj_dim):
+        super(ProjectionToSameDim, self).__init__()
+        self.peptide_proj_layer = nn.Linear(peptide_dim, proj_dim)
+        self.hla_proj_layer = nn.Linear(hla_dim, proj_dim)
+
+    def forward(self, peptide_data, hla_data):
+        peptide_projected = self.peptide_proj_layer(peptide_data)
+        hla_projected = self.hla_proj_layer(hla_data)
+        return torch.cat((peptide_projected, hla_projected.unsqueeze(1)), dim=1)
+
+class EncoderClassifier_EmbedModel(nn.Module):
+    def __init__(self, src_embed, encoder, classifier):
+        super(EncoderClassifier_EmbedModel, self).__init__()
+        self.src_embed = src_embed
+        self.encoder = encoder
+        self.classifier = classifier
+
+    def forward(self, peptide, hla, mask=None):
+        return self.classifier(self.encoder(torch.cat((self.src_embed(peptide), self.src_embed(hla)), dim=1), mask))
+
+class EncoderClassifier_EncodeModel(nn.Module):
+    def __init__(self, posenc, projlayer, encoder, classifier):
+        super(EncoderClassifier_EncodeModel, self).__init__()
+        self.posenc = posenc
+        self.projlayer = projlayer
+        self.encoder = encoder
+        self.classifier = classifier
+
+    def forward(self, peptide, hla, mask=None):
+        # positionally encode the peptide amino acids relative to one another
+        # return self.classifier(self.encoder(self.projlayer(self.posenc(peptide), hla), mask))
+        return self.classifier(self.encoder(self.projlayer(peptide, hla), mask))
+
 class Sigmoid_Classifier(nn.Module):
     "A simple classification layer for binary classification."
 
@@ -413,6 +448,40 @@ class OverallModel(nn.Module):
         # self.final_transformer.train()
         return self.final_transformer(concat_outputs)
 
+
+class OverallModel_2(nn.Module):
+    def __init__(self, src_vocab, hla_dim=None, N=6, d_model=240, proj_dim=240, d_ff=2048, h=8, dropout=0.1):
+        super(OverallModel_2, self).__init__()
+
+        self.d_model = d_model
+        c = copy.deepcopy
+        attn = MultiHeadedAttention(h, d_model)
+        ff = PositionwiseFeedForward(d_model, d_ff, dropout)
+        position = PositionalEncoding(d_model, dropout)
+
+        self.embed_transformer_model = EncoderClassifier_EmbedModel(
+            nn.Sequential(Embeddings(d_model, src_vocab), c(position)),
+            Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), N),
+            Sigmoid_Classifier(d_model))
+
+        if hla_dim:
+            # note that the d_model param for PositionalEncoding is equal to peptide_dim here bc with one-hot encoding, the dim of each encoding = # encodings
+            self.encode_transformer_model = EncoderClassifier_EncodeModel(PositionalEncoding(src_vocab, dropout),
+                                                                          ProjectionToSameDim(src_vocab, hla_dim,
+                                                                                              proj_dim),
+                                                                          # peptide_dim = src_vocab
+                                                                          Encoder(EncoderLayer(d_model, c(attn), c(ff),
+                                                                                               dropout), N),
+                                                                          Sigmoid_Classifier(d_model))
+
+    def forward(self, pep_data, hla_data, padding_mask = None,
+                model_type = "encode"):  # bos = beg of seq; bos_data should just be a series of 0's (one 0 for every input seq)
+        if model_type == "embed":
+            return self.embed_transformer_model(pep_data, hla_data, padding_mask)
+        elif model_type == "encode":
+            return self.encode_transformer_model(pep_data, hla_data, padding_mask)
+        else:
+            print("model_type must be 'embed' or 'encode'")
 ##################################
 
 
@@ -448,10 +517,13 @@ class NoamOpt:
     def zero_grad(self):
         self.optimizer.zero_grad()
 
+    def state_dict(self):
+        return self.optimizer.state_dict()
+
 
 def get_std_opt(model):
-    return NoamOpt(model.d_model, 2, 1000,
-                   torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
+    return NoamOpt(model.d_model, 1, 500,
+                   torch.optim.Adam(model.parameters(), lr=1, betas=(0.9, 0.98), eps=1e-9))
 
 class EarlyStopper:
     def __init__(self, patience: int = 1, min_delta: float = 0):
@@ -489,7 +561,8 @@ def train(model, trainloader, learning_rate, epochs, device, valloader=None, pat
     """
     # criterion = nn.CrossEntropyLoss()
     criterion = nn.BCELoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = get_std_opt(model)
+    # optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     early_stopper = EarlyStopper(patience=patience, min_delta=min_delta)
 
     model.train() # Set training mode to update gradients
@@ -510,23 +583,33 @@ def train(model, trainloader, learning_rate, epochs, device, valloader=None, pat
 def train_one_epoch(model, ep, trainloader, optimizer, criterion, device):
     loss = 0
     for _, data in enumerate(trainloader, 0):
-        pep_enumerated = data[0][0].to(device)
-        pephla_enumerated = data[0][1].to(device)
-        bos_tensor = data[0][2].to(device)
+        pep = data[0][0].to(device)
+        hla = data[0][1].to(device)
+        # pep_enumerated = data[0][0].to(device)
+        # pephla_enumerated = data[0][1].to(device)
+        # bos_tensor = data[0][2].to(device)
         labels = data[1].to(device)
 
         # zero the parameter gradients
         optimizer.zero_grad()
 
         # forward
-        outputs = model(pep_enumerated, AA_MAPPING['-'], pephla_enumerated, bos_tensor)
+        outputs = model(pep, hla)
 
         batch_loss = criterion(outputs, labels.unsqueeze(-1).float())
         batch_loss.backward(retain_graph=True)
+
+        before_lr = optimizer.optimizer.param_groups[0]['lr']
+        optimizer.step()
+        after_lr = optimizer.optimizer.param_groups[0]['lr']
+        print("Step %d: Adam LR %.6f -> %.6f" % (optimizer._step, before_lr, after_lr))
+        # logging.info("Epoch %d: Adam LR %.6f -> %.6f" % (ep, before_lr, after_lr))
+
         optimizer.step()
 
         loss += batch_loss.item() * labels.size(0)
     loss = loss / len(trainloader.sampler)
+    print(f"Avg. train epoch {ep} loss: {loss}")
     logging.info(f"Avg. train epoch {ep} loss: {loss}")
     return loss
 
@@ -539,13 +622,15 @@ def eval_one_epoch(model, ep, dataloader, criterion, device): # TODO: optional r
 
         # Iterate over the test data and generate predictions
         for _, data in enumerate(dataloader, 0):
-            pep_enumerated = data[0][0].to(device)
-            pephla_enumerated = data[0][1].to(device)
-            bos_tensor = data[0][2].to(device)
+            pep = data[0][0].to(device)
+            hla = data[0][1].to(device)
+            # pep_enumerated = data[0][0].to(device)
+            # pephla_enumerated = data[0][1].to(device)
+            # bos_tensor = data[0][2].to(device)
             labels = data[1].to(device)
 
             # forward
-            outputs = model(pep_enumerated, AA_MAPPING['-'], pephla_enumerated, bos_tensor)
+            outputs = model(pep, hla)
 
             batch_loss = criterion(outputs, labels.unsqueeze(-1).float())
             loss += batch_loss.item() * labels.size(0)
@@ -602,14 +687,15 @@ def evaluate(model, dataloader, replicates, device): # TODO: optional replicates
 
         # Iterate over the test data and generate predictions
         for _, data in enumerate(dataloader, 0): # add dataset label to get item tuple?
-            pep_enumerated = data[0][0].to(device)
-            pephla_enumerated = data[0][1].to(device)
-            bos_tensor = data[0][2].to(device)
+            pep = data[0][0].to(device)
+            hla = data[0][1].to(device)
+            # pep_enumerated = data[0][0].to(device)
+            # pephla_enumerated = data[0][1].to(device)
+            # bos_tensor = data[0][2].to(device)
             labels = data[1].to(device)
-            # inputs = torch.cat((data[0]), 1).to(torch.float).to(device)
-            # inputs = data[0].to(torch.float).to(device)
-            # labels = data[1].to(device)
             indices = data[2].to(device)
+
+
 
             # input_lst.append(inputs)
             target_lst.append(labels)
@@ -618,7 +704,7 @@ def evaluate(model, dataloader, replicates, device): # TODO: optional replicates
             # Iterate over replicates
             predictions = torch.zeros(labels.shape[0], replicates)
             for j in range(0,replicates):
-                outputs = model(pep_enumerated, AA_MAPPING['-'], pephla_enumerated, bos_tensor)
+                outputs = model(pep, hla)
                 logits = outputs.data
                 predictions[:,j] = logits.squeeze() #torch.argmax(outputs.data, dim=1)
 

@@ -522,9 +522,10 @@ def train_preset_split():
                                                     prefetch_factor=prefetch_factor,
                                                     persistent_workers=True)
                 src_vocab1 = 22
-                src_vocab2 = 15000
-                model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8,
-                                                         dropout=0.1)
+                hla_dim = 4008  # TODO: hard-coding for now
+                # src_vocab2 = 15000
+                # model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1)
+                model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim)
                 peptide_transformer.initialize_param(model)
 
                 # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
@@ -673,7 +674,7 @@ def trainer(args,
 
         if val_dataset is not None:
             val_dataset.set_feat_cols(feat_set)
-            assert (feature_dims == val_dataset.feature_dimensions())
+            # assert (feature_dims == val_dataset.feature_dimensions())
 
         for fold in range(args.folds):
 
@@ -717,8 +718,10 @@ def trainer(args,
                 valloader = None
 
             src_vocab1 = 22
-            src_vocab2 = 15000
-            model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1)
+            hla_dim = 4008 #TODO: hard-coding for now
+            # src_vocab2 = 15000
+            # model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1)
+            model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim)
             peptide_transformer.initialize_param(model)
 
             # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
@@ -737,6 +740,8 @@ def trainer(args,
                                               featname=featname, pepfeats_dict=featsets_dict, seed=seed)
 
             peptide_transformer.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
+            # peptide_nn.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
+
 
             _, targets, indices, preds = peptide_transformer.evaluate(model, testloader, args.pred_replicates, device)
             targets = [t.item() for t in torch.hstack(targets).cpu()]
@@ -758,6 +763,7 @@ def trainer(args,
                 eval_dict['fold'].append(str(fold + 1))
 
         eval_df = pd.DataFrame.from_dict(eval_dict)
+
 
         ## getting cross-fold metrics
         for fold, df in eval_df.groupby("fold"):

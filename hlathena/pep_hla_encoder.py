@@ -9,6 +9,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 import importlib_resources
+import re
 
 from hlathena.amino_acid_feature_map import AminoAcidFeatureMap
 from hlathena.definitions import AMINO_ACIDS, AMINO_ACIDS_EXT, LOCI, AA_MAPPING, BOS_TOKEN, BOS_DICT
@@ -28,9 +29,13 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
 
         if hla_encoding_file is None:
             hla_encoding_file = importlib_resources.files('hlathena').joinpath('data').joinpath('hla_seqs_onehot.csv')
-
         self.hla_encoding = pd.read_csv(hla_encoding_file, index_col=allele_col_name)
-        self.hla_mapping = {hla: i+22 for i, hla in enumerate(self.hla_encoding.index)}
+
+        ### Adding for transformer testing
+        hla_seq_file = importlib_resources.files('hlathena').joinpath('data').joinpath( 'ABCG_prot.parsed.clean.SEQ.ME.ALL.FEATS.txt')
+        self.hla_seqs = pd.read_csv(hla_seq_file, sep=' ', index_col='allele')
+
+        self.hla_mapping = {hla: i+22 for i, hla in enumerate(self.hla_encoding.index)} # FOR V1
         # self.pep_len = pep_length
         # self.maxlen = maxlen
         self.pep_lens = pep_lens
@@ -64,6 +69,24 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
             encoded = np.concatenate((encoded, (encoded @ aafeatmat_bd)))
         return torch.as_tensor(encoded).float()
 
+    def encode_peptide_notflat_with_BOS(self, pep):
+
+        pep = 'B' + pep + ((max(self.pep_lens) - len(pep)) * '-')
+        # pep += (max(self.pep_lens) - len(pep)) * '-'
+
+        peptide = [list(pep)]
+        encoder = OneHotEncoder(
+            categories=[AMINO_ACIDS_EXT] * len(pep))
+        encoder.fit(peptide)
+        encoded = encoder.transform(peptide).toarray()[0].reshape(len(pep),len(AMINO_ACIDS_EXT))
+
+        # onehot_only = not self.aa_feature_map.aa_feature_files
+        # # Add additional encoding features if present
+        # if not onehot_only:
+        #     aafeatmat_bd: np.ndarray = np.kron(np.eye(len(pep), dtype=int), self.aa_feature_map.aa_feature_map)
+        #     encoded = np.concatenate((encoded, (encoded @ aafeatmat_bd)))
+        return torch.as_tensor(encoded).float()
+
     def enumerate_pep(self, pep):
         padded_seq = pep.ljust(max(self.pep_lens), '-')
         return torch.tensor([AA_MAPPING[aa] for aa in padded_seq])
@@ -87,6 +110,31 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
         encoder = OneHotEncoder(categories=[LOCI])
         encoder.fit([[loci]])
         return torch.as_tensor(encoder.transform([[loci]]).toarray()[0]).float()
+
+    # for transformer v2 implementation
+    def encode_hla_fullseq_notflat(self, hla):
+        if 'HLA-' in hla: # cleaning name for testing file
+            hla = re.sub(r'[*:]', '', hla.split('HLA-')[1])
+        # loc_enc = self.encode_loci(self.get_loci(hla)) # encoding allele loci
+        hla_seq = [list(self.hla_seqs.at[hla, 'seq'])]
+        encoder = OneHotEncoder(
+            categories=[AMINO_ACIDS_EXT] * len(hla_seq[0]))
+        encoder.fit(hla_seq)
+        encoded = encoder.transform(hla_seq).toarray()[0].reshape(len(hla_seq[0]), len(AMINO_ACIDS_EXT))
+
+        return torch.as_tensor(encoded).float()
+
+    def encode_hla_fullseq(self, hla):
+        if 'HLA-' in hla: # cleaning name for testing file
+            hla = re.sub(r'[*:]', '', hla.split('HLA-')[1])
+        # loc_enc = self.encode_loci(self.get_loci(hla)) # encoding allele loci
+        hla_seq = [list(self.hla_seqs.at[hla, 'seq'])]
+        encoder = OneHotEncoder(
+            categories=[AMINO_ACIDS_EXT] * len(hla_seq[0]))
+        encoder.fit(hla_seq)
+        encoded = encoder.transform(hla_seq).toarray()[0]#.reshape(len(hla_seq[0]), len(AMINO_ACIDS_EXT))
+
+        return torch.as_tensor(encoded).float()
 
     def encode_hla(self, hla):
         loc_enc = self.encode_loci(self.get_loci(hla)) # encoding allele loci
