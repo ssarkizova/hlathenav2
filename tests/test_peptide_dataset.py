@@ -1,3 +1,4 @@
+import copy
 import unittest
 
 import pandas as pd
@@ -65,21 +66,33 @@ class TestPeptideDataset(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "No peptide sequences"):
             hlathena.PeptideDataset(pd.DataFrame(columns=['pep']))
 
-    @unittest.skip("Check doesn't raise an exception.")
-    def test_fails_with_short_peptides(self):
-        with self.assertRaisesRegex(Exception, "lengths are not in the allowed range"):
-            hlathena.PeptideDataset(["KSSFLSSPE", "KSSF"])
-
-    @unittest.skip("Check doesn't raise an exception.")
-    def test_fails_with_long_peptides(self):
-        with self.assertRaisesRegex(Exception, "lengths are not in the allowed range"):
-            hlathena.PeptideDataset(["KSSFLSSPE", "KSSFKSSFLSSPE"])
-
-    @unittest.skip("Check doesn't raise an exception")
-    def test_fails_with_invalid_amino_acids(self):
-        with self.assertRaisesRegex(Exception, "contain invalid characters"):
+    def test_warns_with_invalid_amino_acids(self):
+        with self.assertWarnsRegex(Warning, "contain invalid characters"):
             # B is not an amino acid
             hlathena.PeptideDataset(["KSSFLSSPB"])
+
+    def test_subsets(self):
+        peptide_dataset_len_8 = copy.deepcopy(self.peptide_dataset)
+        peptide_dataset_len_8.subset_data(peplens=8)
+        self.assertEqual(len(peptide_dataset_len_8), 1)
+
+        # Same as above three lines but using a list [8] instead of the int 8
+        peptide_dataset_len_8 = copy.deepcopy(self.peptide_dataset)
+        peptide_dataset_len_8.subset_data(peplens=[8])
+        self.assertEqual(len(peptide_dataset_len_8), 1)
+
+        peptide_dataset_allele_a0101 = copy.deepcopy(self.peptide_dataset)
+        peptide_dataset_allele_a0101.subset_data(alleles='A0101')
+        self.assertEqual(len(peptide_dataset_allele_a0101), 5)
+
+        # Same as above three lines but using a list ['A0101'] instead of the string 'A0101'
+        peptide_dataset_allele_a0101 = copy.deepcopy(self.peptide_dataset)
+        peptide_dataset_allele_a0101.subset_data(alleles=['A0101'])
+        self.assertEqual(len(peptide_dataset_allele_a0101), 5)
+
+        peptide_dataset_len_9_allele_a0101 = copy.deepcopy(self.peptide_dataset)
+        peptide_dataset_len_9_allele_a0101.subset_data(peplens=9, alleles='A0101')
+        self.assertEqual(len(peptide_dataset_len_9_allele_a0101), 4)
 
 if __name__ == '__main__':
     unittest.main()
