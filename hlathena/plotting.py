@@ -85,7 +85,7 @@ def plot_logo(pep_df: pd.DataFrame,
         length = pep_lengths[0]
     
     if length is not None:
-        if not label_col is None:
+        if label_col is not None:
             
             num_cols = 3
             num_rows = math.ceil(len(pep_df[label_col].unique()) / num_cols)
@@ -143,9 +143,9 @@ def plot_logo(pep_df: pd.DataFrame,
 
 def plot_umap(umap_embedding_df: pd.DataFrame, 
               clustered: bool = False,
-              label_col: str = None,
-              title: str=None, 
-              save_path: str=None) -> None:
+              label_col: Optional[str] = None,
+              title: Optional[str] = None, 
+              save_path: Optional[str] = None) -> None:
     """Plot the UMAP for a given UMAP embedding dataframe. 
 
     Args:
@@ -165,7 +165,7 @@ def plot_umap(umap_embedding_df: pd.DataFrame,
     else:
         fig, ax = plt.subplots(1,1, figsize=(8,8))
         
-        if not label_col is None:
+        if label_col is not None:
             for i, (label, d) in enumerate(umap_embedding_df.groupby(label_col)):
                 ax.scatter(d.loc[:, 'umap_1'], 
                         d.loc[:, 'umap_2'], 
@@ -182,10 +182,10 @@ def plot_umap(umap_embedding_df: pd.DataFrame,
         plt.ylabel('umap_2', fontsize=15)
         plt.axis('equal')
     
-        if title != None:
+        if title is not None:
             plt.title(title, fontsize=15)
 
-        if save_path != None:
+        if save_path is not None:
             plt.savefig(save_path);
     
     
@@ -214,9 +214,9 @@ def get_logo_df(peptides: List[str], length: int):
 
 def plot_clustered_umap(umap_embedding_df: pd.DataFrame,
                         # label_df: pd.DataFrame = None,
-                        label_col: str = None,
-                        title: str=None,
-                        save_path: str=None):   
+                        label_col: Optional[str] = None,
+                        title: Optional[str] = None,
+                        save_path: Optional[str] = None):
     """Plot the  clustered UMAP for a given UMAP embedding dataframe. 
 
     Args:
