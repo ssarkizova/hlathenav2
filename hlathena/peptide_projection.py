@@ -17,7 +17,8 @@ from hlathena.pep_hla_encoder import PepHLAEncoder
 
 
 def PCA_numpy_SVD(X, rowvar=False):
-    """Computes the PCA of a matrix using SVD.
+    """
+    Computes the PCA of a matrix using SVD.
 
     Args:
         X: Input matrix.
@@ -41,13 +42,14 @@ def PCA_numpy_SVD(X, rowvar=False):
 
 def pep_pos_weight(encoded_pep_df: pd.DataFrame, 
                    pos_weights: List[float], 
-                   aafeatmat: pd.DataFrame):
-    """Weight amino acid features by position.
+                   aafeatmat: AminoAcidFeatureMap):
+    """
+    Weight amino acid features by position.
 
     Args:
         encoded_pep_df (pd.DataFrame): Encoded peptide sequences.
         pos_weights (List[float]): Average of the allele-specific and pan-allele entropies.
-        aafeatmat (AminoAcidFeatureMap): AA x Feature matrix.
+        aafeatmat (AminoAcidFeatureMap): Amino acid feature matrix.
 
     Returns:
         Encoded feature matrix weighted by position.
@@ -61,21 +63,22 @@ def pep_pos_weight(encoded_pep_df: pd.DataFrame,
 
 
 def PCA_encode(peptides: Union[List[str], PeptideDataset],               
-               peplen: int, # TO DO: enable projection for mixed-length peptide input
-               allele: Optional[str]=None,
-               aa_feature_map: AminoAcidFeatureMap=None,
-               precomp_PCA_path: os.PathLike=None,
-               save_PCA_path: os.PathLike=None) -> pd.DataFrame:
-    """Encodes peptides and performs PCA.
+               peplen: int,  # TO DO: enable projection for mixed-length peptide input
+               allele: Optional[str] = None,
+               aa_feature_map: AminoAcidFeatureMap = None,
+               precomp_PCA_path: os.PathLike = None,
+               save_PCA_path: os.PathLike = None) -> pd.DataFrame:
+    """
+    Encodes peptides and performs PCA.
 
     Args:
-        peptides (List[str]): List of peptides to encode.
-        allele (str): HLA allele.
-        peplen (int): Length of peptides.
-        #aa_featurefiles (List[os.PathLike], optional): List of paths to files containing amino acid features (default None).
-        aa_featuremap # TO DO
-        precomp_PCA_path (str, optional): Path to precomputed PCA object (default None).
-        save_PCA_path (str, optional): Path to save PCA object (default None).
+        peptides (Union[List[str], PeptideDataset]): List of peptides to encode.
+        peplen (int, optional): Length used to subset dataset before encoding (default None).
+        allele (str, optional): HLA allele used to subset dataset before encoding (default None).
+        aa_feature_map (AminoAcidFeatureMap, optional): Feature map with desired amino acid encoding features
+                                            (default Kidera Factors feature map)
+        precomp_PCA_path (os.PathLike, optional): Path to precomputed PCA object (default None).
+        save_PCA_path (os.PathLike, optional): Path to save PCA object (default None).
 
     Returns:
         Encoded peptides with PCA applied.
@@ -86,33 +89,34 @@ def PCA_encode(peptides: Union[List[str], PeptideDataset],
         peptides = PeptideDataset(peptides, allele)
     peptides.subset_data(peplens=[peplen], alleles=[allele])
     peptides = peptides.get_peptides()
-        
+
+    # Use Kidera Factors features if none specified
     if aa_feature_map is None:
         aa_feature_map = AminoAcidFeatureMap(aa_feature_files=[aa_feature_file_Kidera])
 
     encoded_peptides = PepHLAEncoder.get_encoded_peps(peptides, aa_feature_map)
 
-    ###  Weight positions by entropy
+    #  Weight positions by entropy
     data = importlib_resources.files('hlathena').joinpath('data').joinpath('motif_entropies')
-    motifEntropies_file = data.joinpath(f'motifEntropies_{str(peplen)}_MS_IEDB.txt')
-    motifEntropies = pd.read_csv(motifEntropies_file, sep=' ', header=0)    
+    motif_entropies_file = data.joinpath(f'motifEntropies_{str(peplen)}_MS_IEDB.txt')
+    motif_entropies = pd.read_csv(motif_entropies_file, sep=' ', header=0)
     
     if not allele is None:
         # Average of the allele-specific and pan-allele entropies so we don't miss plausible anchors/subanchors
-        pos_weights = (((1-motifEntropies.loc[allele,:]) + (1-motifEntropies.loc['Avg',:]))/2).tolist()
+        pos_weights = (((1-motif_entropies.loc[allele,:]) + (1-motif_entropies.loc['Avg',:]))/2).tolist()
     else:
         # Average of pan-allele entropies
-        pos_weights = (1-motifEntropies.loc['Avg',:]).tolist()
+        pos_weights = (1-motif_entropies.loc['Avg',:]).tolist()
     
     encoded_peps_wE = pep_pos_weight(encoded_peptides, pos_weights, aa_feature_map)
-    if precomp_PCA_path != None:
+    if precomp_PCA_path is not None:
         npz_tmp = np.load(precomp_PCA_path)
         evecs = npz_tmp['evecs']
         explained_variances = npz_tmp['explained_variances']
     else:
         evals, evecs, explained_variances = PCA_numpy_SVD(encoded_peps_wE)
         
-    if save_PCA_path != None:
+    if save_PCA_path is not None:
         np.savez(save_PCA_path, evals=evals, evecs=evecs, explained_variances=explained_variances)
             
     peps_wE_pca_nocenter_df = pd.DataFrame(
@@ -129,13 +133,14 @@ def get_umap_embedding(feature_matrix: pd.DataFrame,
                        n_neighbors: int = 5,
                        min_dist: float = 0.5,
                        random_state: int = 42):
-    """Create UMAP embedding dataframe for peptides.
+    """
+    Create UMAP embedding dataframe for peptides.
 
     Args:
         feature_matrix (pd.DataFrame): A dataframe with the peptide PCA encoding.
-        n_neighbors (int, optional):   This parameter controls the balance between local versus global structure in the data.
-        min_dist (float, optional):    This parameter controls how tightly points are packed together.
-        random_state (int, optional):  This is the random state seed value which can be fixed to ensure reproducibility.
+        n_neighbors (int, optional):   This parameter controls the balance between local versus global structure in the data (default 5).
+        min_dist (float, optional):    This parameter controls how tightly points are packed together (default 0.5).
+        random_state (int, optional):  This is the random state seed value which can be fixed to ensure reproducibility (default 42).
 
 
     Returns:
@@ -158,12 +163,13 @@ def get_umap_embedding(feature_matrix: pd.DataFrame,
 def get_peptide_clustering(umap_embedding: pd.DataFrame,
                            eps: int = 3,
                            min_samples: int = 7):
-    """Label peptide clusters.
+    """
+    Label peptide clusters.
 
     Args:
         umap_embedding (pd.DataFrame): A dataframe with the peptide PCA encoding.
-        eps (int, optional):           The maximum distance between two samples for one to be considered as in the neighborhood of the other.
-        min_samples (int, optional):   The number of samples (or total weight) in a neighborhood for a point to be considered as a core point.
+        eps (int, optional):           The maximum distance between two samples for one to be considered as in the neighborhood of the other (default 3).
+        min_samples (int, optional):   The number of samples (or total weight) in a neighborhood for a point to be considered as a core point (default 7).
         
 
     Returns:
