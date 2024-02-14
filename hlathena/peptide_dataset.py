@@ -2,6 +2,7 @@
 
 import logging
 from typing import List, Union, Optional
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -137,7 +138,7 @@ class PeptideDataset(Dataset):
             List[str]: List of peptides
 
         """
-        return self.pep_df['ha__pep'].values
+        return self.pep_df['ha__pep'].values.tolist()
 
     def get_peptide_lengths(self) -> List[int]:
         """
@@ -161,7 +162,7 @@ class PeptideDataset(Dataset):
         else:
             return None
 
-    def get_allele_peptide_counts(self) -> Optional[Union[pd.DataFrame, None]]:  # TODO: Change to Optional
+    def get_allele_peptide_counts(self) -> Optional[pd.DataFrame]:
         """
         Get count of peptides per allele
 
@@ -176,7 +177,7 @@ class PeptideDataset(Dataset):
         else:
             return None
 
-    def get_allele_peptide_length_counts(self) -> Union[List[str], None]:
+    def get_allele_peptide_length_counts(self) -> Optional[pd.DataFrame]:
         """
         Get count of peptides per length
 
@@ -210,7 +211,7 @@ class PeptideDataset(Dataset):
                 for aa in pep:
                     assert aa in AMINO_ACIDS
         except AssertionError:
-            print("Peptides sequences contain invalid characters. \
+            warnings.warn("Peptides sequences contain invalid characters. \
                    Please ensure peptides sequences only contain the 20 standard amino acid symbols.")
 
     def _check_supported_peptide_lengths(self) -> None:
@@ -239,7 +240,7 @@ class PeptideDataset(Dataset):
 
     def subset_data(
             self,
-            peplens: Optional[Union[int, List[int], str, List[str]]] = None,
+            peplens: Optional[Union[int, List[int]]] = None,
             alleles: Optional[Union[str, List[str]]] = None,
             reset_index: Optional[bool] = False) -> None:
         """ Subset the peptide dataset to specified alleles and lengths.
