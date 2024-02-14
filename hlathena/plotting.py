@@ -1,6 +1,9 @@
 import math
-from typing import List
+from typing import List, Optional
 from collections import Counter
+
+import matplotlib.axes
+from matplotlib.figure import Figure
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
@@ -20,9 +23,9 @@ markers = list(plt.Line2D.filled_markers)
 
 
 # SISI - we should have a version for this plotting function that takes in the peptide dataset class as well
-def plot_length(pep_df: PeptideDataset,
-                pep_col: str = 'seq', 
-                label_col: str = None) -> None:
+def plot_length(pep_df: pd.DataFrame,
+                pep_col: str = 'seq',
+                label_col: Optional[str] = None) -> matplotlib.axes.Axes:
     """Plot the distribution of peptide lengths.
 
     Args:
@@ -51,10 +54,10 @@ def plot_length(pep_df: PeptideDataset,
         
 
     
-def plot_logo(pep_df: pd.DataFrame, 
-              length: int = None, 
-              pep_col: str = 'seq', 
-              label_col: str = None) -> None:
+def plot_logo(pep_df: pd.DataFrame,
+              length: Optional[int] = None,
+              pep_col: str = 'seq',
+              label_col: Optional[str] = None) -> List[matplotlib.axes.Axes]:
     """Plot the sequence logo for a given allele and peptide length.
 
     Args:
@@ -78,15 +81,17 @@ def plot_logo(pep_df: pd.DataFrame,
 
     
     pep_lengths = list(set([len(pep) for pep in peptides]))
+    if len(pep_lengths) == 1:
+        length = pep_lengths[0]
     
-    if not length is None or len(pep_lengths) < 2:
+    if length is not None:
         if not label_col is None:
             
             num_cols = 3
             num_rows = math.ceil(len(pep_df[label_col].unique()) / num_cols)
             height_per_row = 2
             width_per_col = 4
-            fig = plt.figure(figsize=[width_per_col * num_cols, height_per_row * num_rows])
+            fig = plt.figure(figsize=(width_per_col * num_cols, height_per_row * num_rows))
 
             for i, (label, d) in enumerate(pep_df.groupby(label_col)):
                 num_row, num_col = divmod(i, num_cols)
@@ -99,11 +104,13 @@ def plot_logo(pep_df: pd.DataFrame,
                 ax.set_xticks([])
                 ax.set_yticks([])
                 ax.set_title(f'{label}, Length {length} (n={len(peps)})')
+            return fig.get_axes()
         else: 
             peps = [pp for pp in peptides if len(pp) == length]
             logo_df = get_logo_df(peps, length)
             logo = logomaker.Logo(logo_df)
             logo.ax.set_title(f'Length {length} (n={len(peps)})')
+            return [logo.ax]
     
     
     else:
@@ -130,6 +137,7 @@ def plot_logo(pep_df: pd.DataFrame,
 
         # style and save figure
         fig.tight_layout()
+        return fig.get_axes()
 
 
 
