@@ -21,7 +21,7 @@ def list_tcga_expression_references() -> pd.DataFrame:
 def get_reference_gene_ids(pep_df: pd.DataFrame, \
                             pep_col: str = 'seq', \
                             ref_fasta: str = None, \
-                            add_context: bool = True):
+                            add_context: bool = True) -> pd.DataFrame:
         """
         Given a reference FASTA file and a list of peptide sequences, this function identifies the gene(s) 
         in the reference file that produce each peptide sequence, and returns a DataFrame with information 
@@ -62,7 +62,7 @@ def get_reference_gene_ids(pep_df: pd.DataFrame, \
 
                 if add_context:
                     ctx_up_start = start_index - 30 if start_index > 30 else 0
-                    ctx_down_end = end_index + 30 if len(seq) > end_index + 30 else len(seq)
+                    ctx_down_end = end_index + 31 if len(seq) > end_index + 31 else len(seq)
 
                     up_seq = seq[ctx_up_start:start_index]
                     dn_seq = seq[end_index+1:ctx_down_end]
