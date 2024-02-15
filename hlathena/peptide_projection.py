@@ -59,9 +59,9 @@ def PCA_encode(  # pylint: disable=invalid-name
     peptides: Union[List[str], PeptideDataset],
     peplen: int,  # TO DO: enable projection for mixed-length peptide input
     allele: Optional[str] = None,
-    aa_feature_map: AminoAcidFeatureMap = None,
-    precomp_PCA_path: os.PathLike = None,
-    save_PCA_path: os.PathLike = None,
+    aa_feature_map: Optional[AminoAcidFeatureMap] = None,
+    precomp_PCA_path: Optional[os.PathLike] = None,
+    save_PCA_path: Optional[os.PathLike] = None,
 ) -> pd.DataFrame:  # pylint: disable=too-many-locals disable=too-many-locals
     """Encodes peptides and performs PCA. If no aa_feature_map is provided,
     defaults to Kidera Factors.
