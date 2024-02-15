@@ -274,7 +274,6 @@ def plot_clustered_umap(umap_embedding_df: pd.DataFrame,
     if save_path != None:
         plt.savefig(save_path)
     
-    plt.show()
     return (ax0, ax1)
     
 
