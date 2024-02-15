@@ -1,8 +1,10 @@
-import pandas as pd
 import unittest
-from unittest.mock import MagicMock
-from typing import List
-from hlathena import plotting
+from matplotlib.axes import Axes
+from matplotlib.collections import PathCollection
+
+import pandas as pd
+
+from hlathena import peptide_projection, plotting
 
 class TestPlotting(unittest.TestCase):
     def setUp(self) -> None:
@@ -14,6 +16,14 @@ class TestPlotting(unittest.TestCase):
         self.labels = [0, 0, 0, 1, 1]
         self.peptide_df = pd.DataFrame({'seq': self.peptides,
                                         'label': self.labels})
+
+        self.umap_peptide_df = pd.DataFrame({
+            'pep': ['AADIFYSRY', 'AADLNLVLY', 'DTEFPNFKY', 'IDLLKEIYH'],
+            'umap_1': [1, -1, 9, 11],
+            'umap_2': [-1, 1, 9, 11],
+            'cluster': [0, 0, 1, 1],
+            'label': ['A', 'A', 'A', 'B']
+        })
 
         self.length = 9
 
@@ -38,8 +48,7 @@ class TestPlotting(unittest.TestCase):
         axes_list = plotting.plot_logo(self.peptide_df[self.peptide_df['seq'].str.len() == 9])
         self.assertEqual(len(axes_list), 1)
 
-        axes_list = plotting.plot_logo(self.peptide_df[self.peptide_df['seq'].str.len() == 9],
-                                       length=9)
+        axes_list = plotting.plot_logo(self.peptide_df[self.peptide_df['seq'].str.len() == 9], length=9)
         self.assertEqual(len(axes_list), 1)
 
     def test_plot_length_no_peptides(self):
@@ -80,6 +89,48 @@ class TestPlotting(unittest.TestCase):
         # So the bar heights should be 0, 0, 1, 1, 1, 2 (in some order).
         bar_heights = sorted([patch.get_height() for patch in ax.patches])
         self.assertListEqual(bar_heights, [0, 0, 1, 1, 1, 2])
+
+    def test_plot_umap(self):
+        ax = plotting.plot_umap(self.umap_peptide_df)
+
+        # Should be one set of axes for non-clustered umap.
+        self.assertIsInstance(ax, Axes)
+
+        # Scatter plots are represented internally as PathCollections, so the axes should contain one.
+        self.assertTrue(any([isinstance(child, PathCollection) for child in ax.get_children()]))
+        
+    def test_plot_clustered_umap(self):
+        axes_tuple = plotting.plot_umap(self.umap_peptide_df, clustered=True)
+
+        # There should be two plots.
+        self.assertIsInstance(axes_tuple, tuple)
+        self.assertEqual(len(axes_tuple), 2)
+
+        ax0, ax1 = axes_tuple
+        # The first set of axes should contain a scatterplot.
+        # Scatter plots are represented internally as PathCollections, so the axes should contain one.
+        self.assertTrue(any([isinstance(child, PathCollection) for child in ax0.get_children()]))
+        # assert False
+
+        # The second set of axes should contain a bar plot with one bar for each cluster (of which there are two).
+        self.assertEqual(len(ax1.patches), 2)
+
+    def test_plot_clustered_umap_with_labels(self):
+        axes_tuple = plotting.plot_umap(self.umap_peptide_df, clustered=True, label_col='label')
+
+        # There should be two plots.
+        self.assertIsInstance(axes_tuple, tuple)
+        self.assertEqual(len(axes_tuple), 2)
+
+        ax0, ax1 = axes_tuple
+        # The first set of axes should contain a scatterplot.
+        # Scatter plots are represented internally as PathCollections, so the axes should contain one.
+        self.assertTrue(any([isinstance(child, PathCollection) for child in ax0.get_children()]))
+        # assert False
+
+        # The second set of axes should contain a bar plot.
+        # There is one bar for each nonempty (cluster, label) pair, and two for the legend, giving five in total.
+        self.assertEqual(len(ax1.patches), 5)
 
 
 if __name__ == '__main__':
