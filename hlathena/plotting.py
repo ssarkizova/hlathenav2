@@ -1,8 +1,7 @@
 import math
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 from collections import Counter
 
-import matplotlib.axes
 from matplotlib.figure import Figure
 import pandas as pd
 import numpy as np
@@ -13,6 +12,7 @@ import logomaker
 # from sklearn.cluster import DBSCAN
 import seaborn as sns
 import matplotlib.patches as mpatches
+from matplotlib.axes import Axes
 from matplotlib.colors import ListedColormap
 
 from hlathena.definitions import AMINO_ACIDS
@@ -25,7 +25,7 @@ markers = list(plt.Line2D.filled_markers)
 # SISI - we should have a version for this plotting function that takes in the peptide dataset class as well
 def plot_length(pep_df: pd.DataFrame,
                 pep_col: str = 'seq',
-                label_col: Optional[str] = None) -> matplotlib.axes.Axes:
+                label_col: Optional[str] = None) -> Axes:
     """Plot the distribution of peptide lengths.
 
     Args:
@@ -57,7 +57,7 @@ def plot_length(pep_df: pd.DataFrame,
 def plot_logo(pep_df: pd.DataFrame,
               length: Optional[int] = None,
               pep_col: str = 'seq',
-              label_col: Optional[str] = None) -> List[matplotlib.axes.Axes]:
+              label_col: Optional[str] = None) -> List[Axes]:
     """Plot the sequence logo for a given allele and peptide length.
 
     Args:
@@ -145,7 +145,7 @@ def plot_umap(umap_embedding_df: pd.DataFrame,
               clustered: bool = False,
               label_col: Optional[str] = None,
               title: Optional[str] = None, 
-              save_path: Optional[str] = None) -> None:
+              save_path: Optional[str] = None) -> Union[Axes, Tuple[Axes, Axes]]:
     """Plot the UMAP for a given UMAP embedding dataframe. 
 
     Args:
@@ -161,7 +161,7 @@ def plot_umap(umap_embedding_df: pd.DataFrame,
     """
     
     if clustered:
-        plot_clustered_umap(umap_embedding_df, label_col=label_col, title=title, save_path=save_path)
+        return plot_clustered_umap(umap_embedding_df, label_col=label_col, title=title, save_path=save_path)
     else:
         fig, ax = plt.subplots(1,1, figsize=(8,8))
         
@@ -187,6 +187,8 @@ def plot_umap(umap_embedding_df: pd.DataFrame,
 
         if save_path is not None:
             plt.savefig(save_path);
+
+        return ax
     
     
 def get_logo_df(peptides: List[str], length: int):
@@ -216,7 +218,7 @@ def plot_clustered_umap(umap_embedding_df: pd.DataFrame,
                         # label_df: pd.DataFrame = None,
                         label_col: Optional[str] = None,
                         title: Optional[str] = None,
-                        save_path: Optional[str] = None):
+                        save_path: Optional[str] = None) -> Tuple[Axes, Axes]:
     """Plot the  clustered UMAP for a given UMAP embedding dataframe. 
 
     Args:
@@ -273,6 +275,7 @@ def plot_clustered_umap(umap_embedding_df: pd.DataFrame,
         plt.savefig(save_path)
     
     plt.show()
+    return (ax0, ax1)
     
 
 # def get_umap_embedding(feature_matrix: pd.DataFrame, 
