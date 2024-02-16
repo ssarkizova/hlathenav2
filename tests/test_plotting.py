@@ -98,7 +98,7 @@ class TestPlotting(unittest.TestCase):
 
         # Scatter plots are represented internally as PathCollections, so the axes should contain one.
         self.assertTrue(any([isinstance(child, PathCollection) for child in ax.get_children()]))
-        
+
     def test_plot_clustered_umap(self):
         axes_tuple = plotting.plot_umap(self.umap_peptide_df, clustered=True)
 
