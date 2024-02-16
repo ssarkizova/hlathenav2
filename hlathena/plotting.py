@@ -20,7 +20,7 @@ markers = list(plt.Line2D.filled_markers)
 # TODO: SISI - we should have a version for this plotting function that takes
 #   in the peptide dataset class as well
 def plot_length(
-        pep_df: pd.Dataframe,
+        pep_df: pd.DataFrame,
         pep_col: str = 'seq',
         label_col: str = None,
 ) -> None:
