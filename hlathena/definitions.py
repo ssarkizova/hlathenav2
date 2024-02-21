@@ -23,5 +23,5 @@ INVERSE_AA_MAP = {v: k for k, v in AA_MAP.items()}
 # Built-in amino acid feature files
 aa_feature_file_PCA3 = importlib_resources.files('hlathena').joinpath('data').joinpath('aafeatmat_AAPropsPCA3.txt')
 aa_feature_file_Kidera = importlib_resources.files('hlathena').joinpath('data').joinpath('aafeatmat_KideraFactors.txt')
-aa_feature_file_PCA3 = importlib_resources.files('hlathena').joinpath('data').joinpath('aasimmat_BLOSUM62.txt')
-aa_feature_file_PCA3 = importlib_resources.files('hlathena').joinpath('data').joinpath('aasimmat_PMBEC.txt')
+aa_feature_file_BLOSUM = importlib_resources.files('hlathena').joinpath('data').joinpath('aasimmat_BLOSUM62.txt')
+aa_feature_file_PMBEC = importlib_resources.files('hlathena').joinpath('data').joinpath('aasimmat_PMBEC.txt')
