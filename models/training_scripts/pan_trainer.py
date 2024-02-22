@@ -525,7 +525,7 @@ def train_preset_split():
                 hla_dim = 4008  # TODO: hard-coding for now
                 # src_vocab2 = 15000
                 # model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1)
-                model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim)
+                model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim, N=6, d_model=22, d_ff=2048, h=2)
                 peptide_transformer.initialize_param(model)
 
                 # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
@@ -535,8 +535,7 @@ def train_preset_split():
                 model.to(device)
                 logging.info(f"Device: {str(device)}")
                 # optimizer_dict = peptide_nn.train(model, trainloader, args.learning_rate, args.epochs, device, valloader)
-                optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device,
-                                                           valloader)
+                optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, lr_warmup=20)
 
                 # Create model and train
                 model_config = create_config_dict(device=device, epochs=args.epochs, lr=args.learning_rate,
@@ -670,7 +669,7 @@ def trainer(args,
         cross_fold_dict = {"fold": [], "ppv": [], "prauc": []}
 
         peptide_dataset.set_feat_cols(feat_set)
-        feature_dims = peptide_dataset.feature_dimensions()
+        # feature_dims = peptide_dataset.feature_dimensions()
 
         if val_dataset is not None:
             val_dataset.set_feat_cols(feat_set)
@@ -721,7 +720,7 @@ def trainer(args,
             hla_dim = 4008 #TODO: hard-coding for now
             # src_vocab2 = 15000
             # model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1)
-            model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim)
+            model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim, N=6, d_model=22, d_ff=2048, h=2)
             peptide_transformer.initialize_param(model)
 
             # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
@@ -731,7 +730,7 @@ def trainer(args,
             model.to(device)
             logging.info(f"Device: {str(device)}")
             # optimizer_dict = peptide_nn.train(model, trainloader, args.learning_rate, args.epochs, device, valloader)
-            optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device, valloader)
+            optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, lr_warmup=20)
 
             # Create model and train
             model_config = create_config_dict(device=device, epochs=args.epochs, lr=args.learning_rate, dr=args.dropout_rate,
@@ -796,5 +795,5 @@ def trainer(args,
 
 
 if __name__ == "__main__":
-    main()
-    # train_preset_split()
+    # main()
+    train_preset_split()

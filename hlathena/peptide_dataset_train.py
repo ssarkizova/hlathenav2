@@ -99,8 +99,12 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
     def __getitem__(self, i):# -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, float, int]:
         # # For Transformer V2
         pep, hla, tgt = self.pep_at(i), self.allele_at(i), self.tgt_at(i)
-        return ((self.encoder.encode_peptide_notflat_with_BOS(pep),
-                 self.encoder.encode_hla_fullseq_notflat(hla)),
+        pep_tensor, pep_mask = self.encoder.encode_peptide_notflat_with_BOS(pep)
+        hla_tensor, hla_mask = self.encoder.encode_hla_fullseq_notflat(hla)
+        return ((pep_tensor,
+                 hla_tensor,
+                 pep_mask,
+                 hla_mask),
                 tgt,
                 i)
 
