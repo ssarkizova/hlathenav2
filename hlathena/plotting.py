@@ -169,7 +169,7 @@ def plot_umap(
         )
     else:
         _, ax = plt.subplots(1,1, figsize=(8,8))
-        
+
         if label_col is not None:
             for i, (label, df) in enumerate(umap_embedding_df.groupby(label_col)):
                 ax.scatter(
