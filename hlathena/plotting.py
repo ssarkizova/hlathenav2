@@ -1,19 +1,18 @@
 """Peptide dataset plotting module"""
 
+from collections import Counter
 import math
 from typing import List, Optional, Tuple, Union
-from collections import Counter
 
-from matplotlib.figure import Figure
-import pandas as pd
-import numpy as np
-from matplotlib import pyplot as plt
-from scipy import stats
 import logomaker
-import seaborn as sns
-import matplotlib.patches as mpatches
+from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.colors import ListedColormap
+import matplotlib.patches as mpatches
+import numpy as np
+import pandas as pd
+from scipy import stats
+import seaborn as sns
 
 from hlathena.definitions import AMINO_ACIDS
 
