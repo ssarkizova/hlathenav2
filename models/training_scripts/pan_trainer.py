@@ -525,7 +525,9 @@ def train_preset_split():
                 hla_dim = 4008  # TODO: hard-coding for now
                 # src_vocab2 = 15000
                 # model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1)
-                model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim, N=6, d_model=22, d_ff=2048, h=2)
+                version=8
+                print(f'Running version {version}...')
+                model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim, N=6, d_model=22, d_ff=2048, h=2, version=version) # trying diff pos enc style, remove or switch to 2 to change back
                 peptide_transformer.initialize_param(model)
 
                 # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
@@ -535,7 +537,7 @@ def train_preset_split():
                 model.to(device)
                 logging.info(f"Device: {str(device)}")
                 # optimizer_dict = peptide_nn.train(model, trainloader, args.learning_rate, args.epochs, device, valloader)
-                optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, lr_warmup=500)
+                optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, lr_warmup=4000)
 
                 # Create model and train
                 model_config = create_config_dict(device=device, epochs=args.epochs, lr=args.learning_rate,

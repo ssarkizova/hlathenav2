@@ -267,8 +267,9 @@ class EncoderClassifier_EmbedModel(nn.Module):
         return self.classifier(self.encoder(torch.cat((self.src_embed(peptide), self.src_embed(hla)), dim=1), mask))
 
 class EncoderClassifier_EncodeModel(nn.Module):
-    def __init__(self, posenc, projlayer, encoder, classifier):
+    def __init__(self, posenc, projlayer, encoder, classifier, version=2):
         super(EncoderClassifier_EncodeModel, self).__init__()
+        self.version = version
         self.posenc = posenc
         self.projlayer = projlayer
         self.encoder = encoder
@@ -279,7 +280,10 @@ class EncoderClassifier_EncodeModel(nn.Module):
         # positionally encode the peptide amino acids relative to one another
         # return self.classifier(self.encoder(self.projlayer(self.posenc(peptide), hla), mask))
         # return self.classifier(self.encoder(self.projlayer(peptide, hla), mask))
-        return self.classifier(self.encoder(torch.cat((self.posenc(peptide), self.posenc(hla)), dim=1), torch.cat((pep_mask, hla_mask), dim=1)))
+        if self.version==2:
+            return self.classifier(self.encoder(torch.cat((self.posenc(peptide), self.posenc(hla)), dim=1), torch.cat((pep_mask, hla_mask), dim=1)))
+        elif self.version==8:
+            return self.classifier(self.encoder(self.posenc(torch.cat((peptide, hla), dim=1)), torch.cat((pep_mask, hla_mask), dim=1)))
 
 class Sigmoid_Classifier(nn.Module):
     "A simple classification layer for binary classification."
@@ -452,7 +456,7 @@ class OverallModel(nn.Module):
 
 
 class OverallModel_2(nn.Module):
-    def __init__(self, src_vocab=22, hla_dim=None, N=6, d_model=22, proj_dim=240, d_ff=2048, h=2, dropout=0.1):
+    def __init__(self, src_vocab=22, hla_dim=None, N=6, d_model=22, proj_dim=240, d_ff=2048, h=2, dropout=0.1, version=2):
         super(OverallModel_2, self).__init__()
 
         self.d_model = d_model
@@ -468,13 +472,13 @@ class OverallModel_2(nn.Module):
 
         if hla_dim:
             # note that the d_model param for PositionalEncoding is equal to peptide_dim here bc with one-hot encoding, the dim of each encoding = # encodings
-            self.encode_transformer_model = EncoderClassifier_EncodeModel(PositionalEncoding(src_vocab, dropout),
-                                                                          ProjectionToSameDim(src_vocab, hla_dim,
-                                                                                              proj_dim),
-                                                                          # peptide_dim = src_vocab
-                                                                          Encoder(EncoderLayer(d_model, c(attn), c(ff),
-                                                                                               dropout), N),
-                                                                          Sigmoid_Classifier(d_model))
+            self.encode_transformer_model = EncoderClassifier_EncodeModel(
+                PositionalEncoding(src_vocab, dropout),
+                ProjectionToSameDim(src_vocab, hla_dim, proj_dim),
+                Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), N),
+                Sigmoid_Classifier(d_model),
+                version=version
+            )
 
     # def forward(self, pep_data, hla_data, padding_mask = None, model_type = "encode"):
     def forward(self, pep_data, hla_data, pep_mask = None, hla_mask = None, model_type = "encode"): # bos = beg of seq; bos_data should just be a series of 0's (one 0 for every input seq)
