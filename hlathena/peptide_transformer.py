@@ -17,19 +17,6 @@ import copy
 from torch.utils.data import DataLoader
 import logging
 
-from hlathena.definitions import AA_MAPPING
-
-
-class Embeddings(nn.Module):
-    def __init__(self, d_model, vocab):
-        super(Embeddings, self).__init__()
-        self.lut = nn.Embedding(vocab, d_model)
-        self.d_model = d_model
-
-    def forward(self, x):
-        return self.lut(x) * math.sqrt(self.d_model)
-
-
 def clones(module, N):
     "Produce N identical layers."
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
@@ -528,8 +515,13 @@ class NoamOpt:
 
 
 def get_std_opt(model, warmup):
-    return NoamOpt(model.module.d_model, 1, warmup,
+    try:
+        optimizer = NoamOpt(model.module.d_model, 1, warmup,
                    torch.optim.Adam(model.module.parameters(), lr=1, betas=(0.9, 0.98), eps=1e-9))
+    except AttributeError:
+        optimizer = NoamOpt(model.d_model, 1, warmup,
+                   torch.optim.Adam(model.parameters(), lr=1, betas=(0.9, 0.98), eps=1e-9))
+    return optimizer
 
 class EarlyStopper:
     def __init__(self, patience: int = 1, min_delta: float = 0):

@@ -3,6 +3,7 @@ from hlathena.peptide_dataset_train import PeptideDatasetTrain
 from hlathena import peptide_nn
 from hlathena import peptide_transformer
 from hlathena.training_evaluation import TrainingEvaluation
+from hlathena import peptide_cross_attention
 
 import torch.utils.data as torch_data
 import torch
@@ -525,10 +526,12 @@ def train_preset_split():
                 hla_dim = 4008  # TODO: hard-coding for now
                 # src_vocab2 = 15000
                 # model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1)
-                version=8
-                print(f'Running version {version}...')
-                model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim, N=6, d_model=22, d_ff=2048, h=2, version=version) # trying diff pos enc style, remove or switch to 2 to change back
-                peptide_transformer.initialize_param(model)
+                # version=8
+                # print(f'Running version {version}...')
+                # model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim, N=6, d_model=22, d_ff=2048, h=2, version=version) # trying diff pos enc style, remove or switch to 2 to change back
+                # peptide_transformer.initialize_param(model)
+                model = peptide_cross_attention.OverallModel_4(src_vocab=src_vocab1, d_model=src_vocab1, h=2)
+                peptide_cross_attention.initialize_param(model)
 
                 # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
                 if torch.cuda.device_count() > 1:
@@ -537,7 +540,8 @@ def train_preset_split():
                 model.to(device)
                 logging.info(f"Device: {str(device)}")
                 # optimizer_dict = peptide_nn.train(model, trainloader, args.learning_rate, args.epochs, device, valloader)
-                optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, lr_warmup=4000)
+                # optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, lr_warmup=4000)
+                optimizer_dict = peptide_cross_attention.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, lr_warmup=4000)
 
                 # Create model and train
                 model_config = create_config_dict(device=device, epochs=args.epochs, lr=args.learning_rate,
@@ -547,9 +551,11 @@ def train_preset_split():
                                                   fold=fold, aa_features=args.aa_feature_folder,
                                                   featname=featname, pepfeats_dict=pep_feature_sets_dict, seed=seed)
 
-                peptide_transformer.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
+                # peptide_transformer.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
+                peptide_cross_attention.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
 
-                _, targets, indices, preds = peptide_transformer.evaluate(model, testloader, args.pred_replicates, device)
+                # _, targets, indices, preds = peptide_transformer.evaluate(model, testloader, args.pred_replicates, device)
+                _, targets, indices, preds = peptide_cross_attention.evaluate(model, testloader, args.pred_replicates, device)
                 # feature_dims = train_ds.feature_dimensions()
                 # assert(feature_dims == test_ds.feature_dimensions() == valid_ds.feature_dimensions())
                 #

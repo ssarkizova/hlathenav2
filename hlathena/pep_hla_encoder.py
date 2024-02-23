@@ -137,7 +137,7 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
     def get_padding_mask(self, seq):
         padding_bool = [aa != "-" for aa in seq]
         # TODO: need this unsqueeze part?
-        return torch.tensor(padding_bool).unsqueeze(1)
+        return torch.tensor(padding_bool).unsqueeze(0)
 
     # for transformer v2 implementation
     def encode_hla_fullseq_notflat(self, hla):
