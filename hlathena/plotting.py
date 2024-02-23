@@ -26,7 +26,7 @@ def plot_length(
         pep_df: pd.DataFrame,
         pep_col: str = 'seq',
         label_col: Optional[str] = None
-)-> Axes:
+) -> Axes:
     """Plot the distribution of peptide lengths.
 
     Args:
