@@ -24,7 +24,7 @@ markers = list(plt.Line2D.filled_markers)
 def plot_length(
         pep_df: pd.DataFrame,
         pep_col: str = 'seq',
-        label_col: Optional[str] = None
+        label_col: Optional[str] = None,
 ) -> Axes:
     """Plot the distribution of peptide lengths.
 
