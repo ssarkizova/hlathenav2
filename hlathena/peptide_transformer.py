@@ -524,8 +524,8 @@ class NoamOpt:
 
 
 def get_std_opt(model, warmup):
-    return NoamOpt(model.d_model, 1, warmup,
-                   torch.optim.Adam(model.parameters(), lr=1, betas=(0.9, 0.98), eps=1e-9))
+    return NoamOpt(model.module.d_model, 1, warmup,
+                   torch.optim.Adam(model.module.parameters(), lr=1, betas=(0.9, 0.98), eps=1e-9))
 
 class EarlyStopper:
     def __init__(self, patience: int = 1, min_delta: float = 0):

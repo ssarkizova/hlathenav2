@@ -535,7 +535,7 @@ def train_preset_split():
                 model.to(device)
                 logging.info(f"Device: {str(device)}")
                 # optimizer_dict = peptide_nn.train(model, trainloader, args.learning_rate, args.epochs, device, valloader)
-                optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, lr_warmup=20)
+                optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, lr_warmup=500)
 
                 # Create model and train
                 model_config = create_config_dict(device=device, epochs=args.epochs, lr=args.learning_rate,
