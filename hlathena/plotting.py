@@ -167,7 +167,7 @@ def plot_umap(
             save_path=save_path
         )
     else:
-        _, ax = plt.subplots(1,1, figsize=(8,8))
+        _, ax = plt.subplots(1, 1, figsize=(8, 8))
 
         if label_col is not None:
             for i, (label, df) in enumerate(umap_embedding_df.groupby(label_col)):
