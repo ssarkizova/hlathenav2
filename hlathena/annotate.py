@@ -1,4 +1,5 @@
 """Peptide reference annotation module"""
+from typing import Union
 
 import pandas as pd
 from Bio import SeqIO
@@ -20,7 +21,8 @@ def list_tcga_expression_references() -> pd.DataFrame:
 
 
 def get_reference_gene_ids(  # pylint: disable=too-many-locals
-    pep_df: PeptideDataset,
+    pep_df: Union[PeptideDataset, pd.DataFrame],
+    pep_col_name: str = None,
     ref_fasta: str = None,
     add_context: bool = True,
 ) -> PeptideDataset:
@@ -44,7 +46,13 @@ def get_reference_gene_ids(  # pylint: disable=too-many-locals
         A DataFrame with columns for the peptide sequence, corresponding gene(s),
         and optional flanking amino acid sequences.
     """
-    seqs = pep_df.get_peptides()
+    if isinstance(pep_df, PeptideDataset):
+        seqs = pep_df.get_peptides()
+    elif isinstance(pep_df, pd.DataFrame):
+        seqs = pep_df[pep_col_name].values.tolist()
+    else:
+        raise TypeError("Expected peptide_dataset input of type PeptideDataset or pd.DataFrame")
+
 
     automaton = ahocorasick.Automaton()
     for idx, key in enumerate(seqs):
@@ -92,9 +100,10 @@ def get_reference_gene_ids(  # pylint: disable=too-many-locals
 
 
 def add_tcga_expression(
-    peptide_dataset: PeptideDataset,
+    peptide_dataset: Union[PeptideDataset, pd.DataFrame],
     cancer_type: str,
     hugo_col: str = 'Hugo_Symbol',
+    pep_col_name: str = None,
 ) -> PeptideDataset:
     """Add column with TCGA reference expression data.
 
@@ -102,6 +111,8 @@ def add_tcga_expression(
         peptide_dataset: A dataframe with peptide sequences and associated Hugo symbols.
         cancer_type: TCGA cancer type abbreviation.
         hugo_col: Name of dataframe column with Hugo symbols.
+        pep_col_name: Name of dataframe column with peptides. Specify if
+            using dataframe input for peptide_dataset.
 
     Returns:
         DataFrame with appended TCGA expression column for selected TCGA reference
@@ -124,11 +135,21 @@ def add_tcga_expression(
     ref_expr_df = ref_expr_df.rename(
         columns={'Cancer Sample Med': f'{cancer_type}_TPM'}  # rename new column
     )
-    # merge with original dataset
-    annotated_df = peptide_dataset.pep_df.merge(
-        ref_expr_df,
-        left_on=hugo_col,
-        right_on='Gene symbol'
-    ).drop(columns=['Gene symbol'])
 
-    return PeptideDataset(annotated_df)
+    # merge with original dataset
+    if isinstance(peptide_dataset, PeptideDataset):
+        annotated_df = peptide_dataset.pep_df.merge(
+            ref_expr_df,
+            left_on=hugo_col,
+            right_on='Gene symbol'
+        ).drop(columns=['Gene symbol'])
+        return PeptideDataset(annotated_df)
+    elif isinstance(peptide_dataset, pd.DataFrame):
+        annotated_df = peptide_dataset.merge(
+            ref_expr_df,
+            left_on=hugo_col,
+            right_on='Gene symbol'
+        ).drop(columns=['Gene symbol'])
+        return PeptideDataset(annotated_df, pep_col_name=pep_col_name)
+    else:
+        raise TypeError("Expected peptide_dataset input of type PeptideDataset or pd.DataFrame")
