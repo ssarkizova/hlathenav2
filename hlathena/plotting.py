@@ -305,5 +305,5 @@ def plot_clustered_umap(
     if save_path is not None:
         plt.savefig(save_path)
 
-    fig.tight_layout()
+    plt.tight_layout()
     plt.show()
