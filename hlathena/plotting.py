@@ -1,5 +1,3 @@
-"""Peptide dataset plotting module"""
-
 import math
 from typing import List
 from collections import Counter
@@ -21,7 +19,7 @@ markers = list(plt.Line2D.filled_markers)
 #   in the peptide dataset class as well
 def plot_length(
         pep_df: pd.DataFrame,
-        pep_col: str = 'seq',
+        pep_col: str = 'ha__pep',
         label_col: str = None,
 ) -> None:
     """Plot the distribution of peptide lengths.
@@ -56,7 +54,7 @@ def plot_length(
 def plot_logo(
         pep_df: pd.DataFrame,
         length: int = None,
-        pep_col: str = 'seq',
+        pep_col: str = 'ha__pep',
         label_col: str = None,
 ) -> None:
     """Plot the sequence logo for a given allele and peptide length.
@@ -91,7 +89,6 @@ def plot_logo(
             for i, (label, d) in enumerate(pep_df.groupby(label_col)):
                 num_row, num_col = divmod(i, num_cols)
                 ax = plt.subplot2grid((num_rows, num_cols), (num_row, num_col))
-                # peps = d[pep_col]
                 peps = [pp for pp in d[pep_col] if len(pp) == length]
                 if len(peps) == 0:
                     continue
@@ -139,6 +136,7 @@ def plot_umap(
         label_col: str = None,
         title: str = None,
         save_path: str = None,
+        countplot_log_scale: bool = False,
 ) -> None:
     """Plot the UMAP for a given UMAP embedding dataframe. 
 
@@ -158,7 +156,8 @@ def plot_umap(
             umap_embedding_df,
             label_col=label_col,
             title=title,
-            save_path=save_path
+            save_path=save_path,
+            countplot_log_scale=countplot_log_scale
         )
     else:
         _, ax = plt.subplots(1, 1, figsize=(8, 8))
@@ -237,6 +236,7 @@ def plot_clustered_umap(
         label_col: str = None,
         title: str = None,
         save_path: str = None,
+        countplot_log_scale: bool = False,
 ) -> None:
     """Plot the  clustered UMAP for a given UMAP embedding dataframe. 
 
@@ -254,7 +254,7 @@ def plot_clustered_umap(
     sns_colors = sns.color_palette('tab20', nclust)
     cmap = ListedColormap(sns_colors)
 
-    _, (ax0, ax1) = plt.subplots(1, 2, figsize=(10, 8), gridspec_kw={'width_ratios': [4, 1]})
+    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(10, 8), gridspec_kw={'width_ratios': [4, 1]})
     if label_col is not None:
         for i, (label, df) in enumerate(umap_embedding_df.groupby(label_col)):
             ax0.scatter(
@@ -269,6 +269,10 @@ def plot_clustered_umap(
             )
 
         sns.countplot(data=umap_embedding_df, y='cluster', hue=label_col, ax=ax1)
+        sns.move_legend(ax1, "upper left", bbox_to_anchor=(1, 1))
+
+        if countplot_log_scale:
+            ax1.set_xscale('log')
 
     else:
         ax0.scatter(
@@ -292,7 +296,7 @@ def plot_clustered_umap(
     handles.extend(clust_handles)
     labels.extend(clust_labels)
 
-    ax0.legend(handles=handles, labels=labels)
+    ax0.legend(handles=handles, labels=labels, loc='upper right', bbox_to_anchor=(-0.15, 1))
     ax0.axis('equal')
 
     if title is not None:
@@ -301,4 +305,5 @@ def plot_clustered_umap(
     if save_path is not None:
         plt.savefig(save_path)
 
+    fig.tight_layout()
     plt.show()
