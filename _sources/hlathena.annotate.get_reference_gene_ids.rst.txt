@@ -1,0 +1,6 @@
+﻿hlathena.annotate.get\_reference\_gene\_ids
+===========================================
+
+.. currentmodule:: hlathena.annotate
+
+.. autofunction:: get_reference_gene_ids

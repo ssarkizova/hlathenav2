@@ -1,0 +1,6 @@
+﻿hlathena.peptide\_nn.save\_model
+================================
+
+.. currentmodule:: hlathena.peptide_nn
+
+.. autofunction:: save_model

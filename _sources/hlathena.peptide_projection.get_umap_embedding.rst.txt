@@ -1,0 +1,6 @@
+﻿hlathena.peptide\_projection.get\_umap\_embedding
+=================================================
+
+.. currentmodule:: hlathena.peptide_projection
+
+.. autofunction:: get_umap_embedding

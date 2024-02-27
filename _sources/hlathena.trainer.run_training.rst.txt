@@ -1,0 +1,6 @@
+﻿hlathena.trainer.run\_training
+==============================
+
+.. currentmodule:: hlathena.trainer
+
+.. autofunction:: run_training

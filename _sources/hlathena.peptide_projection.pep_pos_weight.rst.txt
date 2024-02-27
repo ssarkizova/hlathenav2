@@ -1,0 +1,6 @@
+﻿hlathena.peptide\_projection.pep\_pos\_weight
+=============================================
+
+.. currentmodule:: hlathena.peptide_projection
+
+.. autofunction:: pep_pos_weight

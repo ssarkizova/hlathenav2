@@ -1,0 +1,6 @@
+﻿hlathena.plotting.plot\_clustered\_umap
+=======================================
+
+.. currentmodule:: hlathena.plotting
+
+.. autofunction:: plot_clustered_umap
