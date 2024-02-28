@@ -135,7 +135,7 @@ def get_umap_embedding(
     feature_matrix: pd.DataFrame,
     n_neighbors: int = 5,
     min_dist: float = 0.5,
-    random_state: int = 42,
+    random_state: int = None,
 ) -> pd.DataFrame:
     """Create UMAP embedding dataframe for peptides.
 
@@ -149,9 +149,13 @@ def get_umap_embedding(
         A pandas dataframe with the UMAP embedding of the peptide sequences.
     """
     # UMAP embedding
-    umap_transform = umap.UMAP(n_neighbors=n_neighbors,
-                               min_dist=min_dist,
-                               random_state=random_state).fit(feature_matrix)
+    if random_state is not None:
+        umap_transform = umap.UMAP(n_neighbors=n_neighbors,
+                                   min_dist=min_dist,
+                                   random_state=random_state).fit(feature_matrix)
+    else:
+        umap_transform = umap.UMAP(n_neighbors=n_neighbors,
+                                   min_dist=min_dist).fit(feature_matrix)
     # the hits, i.e. identical to above but here as an example how to embed new data - TO DO CHECK
     umap_embedding = umap_transform.transform(feature_matrix)
     umap_embedding_df = pd.DataFrame(

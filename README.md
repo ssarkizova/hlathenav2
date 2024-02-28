@@ -3,17 +3,7 @@ hlathenav2: A python package for HLA binding prediction and peptide analysis
 
 ----------------------------
 
-### Requires scipy, logomaker, umap-learn
-
-### pip install from pypi
-
-```
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple HLAthenaV2==0.1.0
-```
-####
-https://betterscientificsoftware.github.io/python-for-hpc/tutorials/python-pypi-packaging/
-
-### install from github
+### Installation
 ```
 git clone https://github.com/ssarkizova/hlathenav2
 cd hlathenav2

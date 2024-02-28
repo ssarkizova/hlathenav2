@@ -14,7 +14,7 @@ class TestPlotting(unittest.TestCase):
                          'AADLNLVLYLLL', 
                          'IDLLKEIYH']
         self.labels = [0, 0, 0, 1, 1]
-        self.peptide_df = pd.DataFrame({'seq': self.peptides,
+        self.peptide_df = pd.DataFrame({'ha__pep': self.peptides,
                                         'label': self.labels})
 
         self.umap_peptide_df = pd.DataFrame({
@@ -45,10 +45,10 @@ class TestPlotting(unittest.TestCase):
 
     def test_plot_logo_with_only_one_length(self):
         # Should work whether or not the length parameter is specified.
-        axes_list = plotting.plot_logo(self.peptide_df[self.peptide_df['seq'].str.len() == 9])
+        axes_list = plotting.plot_logo(self.peptide_df[self.peptide_df['ha__pep'].str.len() == 9])
         self.assertEqual(len(axes_list), 1)
 
-        axes_list = plotting.plot_logo(self.peptide_df[self.peptide_df['seq'].str.len() == 9], length=9)
+        axes_list = plotting.plot_logo(self.peptide_df[self.peptide_df['ha__pep'].str.len() == 9], length=9)
         self.assertEqual(len(axes_list), 1)
 
     def test_plot_length_no_peptides(self):
