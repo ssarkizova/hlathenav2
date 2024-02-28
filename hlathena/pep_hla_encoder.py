@@ -35,7 +35,7 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
         hla_seq_file = importlib_resources.files('hlathena').joinpath('data').joinpath( 'ABCG_prot.parsed.clean.SEQ.ME.ALL.FEATS.txt')
         self.hla_seqs = pd.read_csv(hla_seq_file, sep=' ', index_col='allele')
 
-        self.hla_mapping = {hla: i+22 for i, hla in enumerate(self.hla_encoding.index)} # FOR V1
+        # self.hla_mapping = {hla: i+22 for i, hla in enumerate(self.hla_encoding.index)} # FOR V1
         # self.pep_len = pep_length
         # self.maxlen = maxlen
         self.pep_lens = pep_lens
@@ -71,7 +71,7 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
 
     def encode_peptide_notflat_with_BOS(self, pep):
 
-        pep = self.add_padding(pep, max(self.pep_lens), padding_token='-')
+        pep = self.add_padding_and_BOS(pep, max(self.pep_lens), padding_token='-')
 
         padding_mask = self.get_padding_mask(pep)
         # padding_bool = [aa != "-" for aa in pep]
@@ -94,9 +94,18 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
         #     encoded = np.concatenate((encoded, (encoded @ aafeatmat_bd)))
         return torch.as_tensor(encoded).float(), padding_mask
 
-    def enumerate_pep(self, pep):
-        padded_seq = pep.ljust(max(self.pep_lens), '-')
-        return torch.tensor([AA_MAPPING[aa] for aa in padded_seq])
+    def enumerate_pep_with_BOS(self, pep):
+        padded_seq = self.add_padding_and_BOS(pep, max(self.pep_lens))
+        padding_mask = self.get_padding_mask(padded_seq)
+        return torch.tensor([AA_MAPPING[aa] for aa in padded_seq]), padding_mask
+
+    def enumerate_hla_with_BOS(self, hla):
+        if 'HLA-' in hla: # cleaning name for testing file
+            hla = re.sub(r'[*:]', '', hla.split('HLA-')[1])
+        # loc_enc = self.encode_loci(self.get_loci(hla)) # encoding allele loci
+        hla_seq = 'B' + self.hla_seqs.at[hla, 'seq']
+        padding_mask = self.get_padding_mask(hla_seq)
+        return torch.tensor([AA_MAPPING[aa] for aa in hla_seq]), padding_mask
 
     def enumerate_pHLA(self, pep, hla):
         # first_last_four = seq[:4] + seq[-4:]
@@ -118,7 +127,7 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
         encoder.fit([[loci]])
         return torch.as_tensor(encoder.transform([[loci]]).toarray()[0]).float()
 
-    def add_padding(self, seq, max_len, padding_token="-"):
+    def add_padding_and_BOS(self, seq, max_len, padding_token="-"):
         """
         Pads the amino acid sequence to a maximum length by adding the necessary number of padding tokens ("-") after the fourth amino acid
 
@@ -137,7 +146,7 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
     def get_padding_mask(self, seq):
         padding_bool = [aa != "-" for aa in seq]
         # TODO: need this unsqueeze part?
-        return torch.tensor(padding_bool).unsqueeze(1)
+        return torch.tensor(padding_bool).unsqueeze(0)
 
     # for transformer v2 implementation
     def encode_hla_fullseq_notflat(self, hla):

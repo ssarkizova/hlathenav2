@@ -103,7 +103,7 @@ def attention(query, key, value, mask=None, dropout=None):
         scores = scores.masked_fill(mask == 0, -1e9)
     p_attn = scores.softmax(dim=-1)
     if dropout is not None:
-        p_attn = dropout(p_attn)
+        p_attn = dropout(p_attn) # to visualize we want to return p_attn
     return torch.matmul(p_attn, value), p_attn
 
 # new one
@@ -139,7 +139,7 @@ class MultiHeadedAttention(nn.Module):
         del query
         del key
         del value
-        return self.linears[-1](x)
+        return self.linears[-1](x)#, self.attn
 
 
 class PositionwiseFeedForward(nn.Module):
@@ -263,11 +263,12 @@ class EncoderClassifier_EmbedModel(nn.Module):
         self.encoder = encoder
         self.classifier = classifier
 
-    def forward(self, peptide, hla, mask=None):
-        return self.classifier(self.encoder(torch.cat((self.src_embed(peptide), self.src_embed(hla)), dim=1), mask))
+    def forward(self, peptide, hla, pep_mask, hla_mask):
+        # return self.classifier(self.encoder(torch.cat((self.src_embed(peptide), self.src_embed(hla)), dim=1), mask))
+        return self.classifier(self.encoder(self.src_embed(torch.cat((peptide, hla), dim=1)), torch.cat((pep_mask, hla_mask), dim=2)))
 
 class EncoderClassifier_EncodeModel(nn.Module):
-    def __init__(self, posenc, projlayer, encoder, classifier, version=2):
+    def __init__(self, posenc, projlayer, encoder, classifier, version=8):
         super(EncoderClassifier_EncodeModel, self).__init__()
         self.version = version
         self.posenc = posenc
@@ -455,11 +456,18 @@ class OverallModel(nn.Module):
         return self.final_transformer(concat_outputs)
 
 
+def get_attention_layers(model):
+    attn_layers = [model.encoder.layers[layer].self_attn.attn for layer in model.layers]
+    return tuple(attn_layers)
+
+
 class OverallModel_2(nn.Module):
-    def __init__(self, src_vocab=22, hla_dim=None, N=6, d_model=22, proj_dim=240, d_ff=2048, h=2, dropout=0.1, version=2):
+    def __init__(self, src_vocab=22, hla_dim=None, N=6, d_model=22, proj_dim=240, d_ff=2048, h=2, dropout=0.1, model_type="encode", version=8):
         super(OverallModel_2, self).__init__()
 
         self.d_model = d_model
+        self.model_type = model_type
+        self.layers = N
         c = copy.deepcopy
         attn = MultiHeadedAttention(h, d_model)
         ff = PositionwiseFeedForward(d_model, d_ff, dropout)
@@ -481,10 +489,10 @@ class OverallModel_2(nn.Module):
             )
 
     # def forward(self, pep_data, hla_data, padding_mask = None, model_type = "encode"):
-    def forward(self, pep_data, hla_data, pep_mask = None, hla_mask = None, model_type = "encode"): # bos = beg of seq; bos_data should just be a series of 0's (one 0 for every input seq)
-        # if model_type == "embed":
-        #     return self.embed_transformer_model(pep_data, hla_data, padding_mask)
-        if model_type == "encode":
+    def forward(self, pep_data, hla_data, pep_mask = None, hla_mask = None): # bos = beg of seq; bos_data should just be a series of 0's (one 0 for every input seq)
+        if self.model_type == "embed":
+            return self.embed_transformer_model(pep_data, hla_data, pep_mask, hla_mask)
+        elif self.model_type == "encode":
             return self.encode_transformer_model(pep_data, hla_data, pep_mask, hla_mask)
         else:
             print("model_type must be 'embed' or 'encode'")
@@ -528,8 +536,13 @@ class NoamOpt:
 
 
 def get_std_opt(model, warmup):
-    return NoamOpt(model.module.d_model, 1, warmup,
-                   torch.optim.Adam(model.module.parameters(), lr=1, betas=(0.9, 0.98), eps=1e-9))
+    try:
+        optimizer = NoamOpt(model.module.d_model, 1, warmup,
+                            torch.optim.Adam(model.module.parameters(), lr=1, betas=(0.9, 0.98), eps=1e-9))
+    except AttributeError:
+        optimizer = NoamOpt(model.d_model, 1, warmup,
+                            torch.optim.Adam(model.parameters(), lr=1, betas=(0.9, 0.98), eps=1e-9))
+    return optimizer
 
 class EarlyStopper:
     def __init__(self, patience: int = 1, min_delta: float = 0):

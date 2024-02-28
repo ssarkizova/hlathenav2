@@ -525,9 +525,10 @@ def train_preset_split():
                 hla_dim = 4008  # TODO: hard-coding for now
                 # src_vocab2 = 15000
                 # model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1)
-                version=8
-                print(f'Running version {version}...')
-                model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim, N=6, d_model=22, d_ff=2048, h=2, version=version) # trying diff pos enc style, remove or switch to 2 to change back
+                # version=8
+                d_model = 512
+                # print(f'Running version {version}...')
+                model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim, N=6, d_model=d_model, d_ff=2048, h=8, model_type="embed") # trying diff pos enc style, remove or switch to 2 to change back
                 peptide_transformer.initialize_param(model)
 
                 # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
