@@ -284,7 +284,7 @@ class EncoderClassifier_EncodeModel(nn.Module):
         if self.version==2:
             return self.classifier(self.encoder(torch.cat((self.posenc(peptide), self.posenc(hla)), dim=1), torch.cat((pep_mask, hla_mask), dim=1)))
         elif self.version==8:
-            return self.classifier(self.encoder(self.posenc(torch.cat((peptide, hla), dim=1)), torch.cat((pep_mask, hla_mask), dim=1)))
+            return self.classifier(self.encoder(self.posenc(torch.cat((peptide, hla), dim=1)), torch.cat((pep_mask, hla_mask), dim=2)))
 
 class Sigmoid_Classifier(nn.Module):
     "A simple classification layer for binary classification."

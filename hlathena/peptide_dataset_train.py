@@ -97,27 +97,28 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
                                      is_pan_allele=len(self.get_alleles()) > 1)
 
     def __getitem__(self, i):# -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, float, int]:
-        # # For Transformer V8 embed
+        # # For Transformer V2
         pep, hla, tgt = self.pep_at(i), self.allele_at(i), self.tgt_at(i)
-        pep_tensor, pep_mask = self.encoder.enumerate_pep_with_BOS(pep)
-        hla_tensor, hla_mask = self.encoder.enumerate_hla_with_BOS(hla)
+        pep_tensor, pep_mask = self.encoder.encode_peptide_notflat_with_BOS(pep)
+        hla_tensor, hla_mask = self.encoder.encode_hla_fullseq_notflat(hla)
         return ((pep_tensor,
                  hla_tensor,
                  pep_mask,
                  hla_mask),
                 tgt,
                 i)
-
-        # # # For Transformer V2
+        
+        # # # For Transformer V8 embed
         # pep, hla, tgt = self.pep_at(i), self.allele_at(i), self.tgt_at(i)
-        # pep_tensor, pep_mask = self.encoder.encode_peptide_notflat_with_BOS(pep)
-        # hla_tensor, hla_mask = self.encoder.encode_hla_fullseq_notflat(hla)
+        # pep_tensor, pep_mask = self.encoder.enumerate_pep_with_BOS(pep)
+        # hla_tensor, hla_mask = self.encoder.enumerate_hla_with_BOS(hla)
         # return ((pep_tensor,
         #          hla_tensor,
         #          pep_mask,
         #          hla_mask),
         #         tgt,
         #         i)
+
 
         # For Transformer V1
         # return ((self.encoder.enumerate_pep(pep),
