@@ -1,4 +1,6 @@
 import copy
+import os
+import time
 import unittest
 
 import pandas as pd
@@ -93,6 +95,21 @@ class TestPeptideDataset(unittest.TestCase):
         peptide_dataset_len_9_allele_a0101 = copy.deepcopy(self.peptide_dataset)
         peptide_dataset_len_9_allele_a0101.subset_data(peplens=9, alleles='A0101')
         self.assertEqual(len(peptide_dataset_len_9_allele_a0101), 4)
+
+    def test_tile_peptides(self):
+        fasta_path = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'fake_fasta.fa')
+        tiled_peptide_dataset = hlathena.tile_peptides(fasta_path, (11, 12))
+        peptides = tiled_peptide_dataset.get_peptides()
+
+        # The first 11 and 12 characters of the second gene in the fasta file.
+        self.assertIn('DTEFPNFKYDT', peptides)
+        self.assertIn('DTEFPNFKYDTE', peptides)
+        # The last 11 and 12 characters of the second gene in the fasta file.
+        self.assertIn('LVLYLLLIDLL', peptides)
+        self.assertIn('LVLYLLLIDLLK', peptides)
+
+        self.assertSetEqual({len(pep) for pep in peptides}, {11, 12})
+        end = time.time()
 
 if __name__ == '__main__':
     unittest.main()
