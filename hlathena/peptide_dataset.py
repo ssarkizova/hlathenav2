@@ -4,6 +4,7 @@ import logging
 from typing import List, Union, Optional, Tuple
 import warnings
 
+from Bio import SeqIO
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_list_like
@@ -307,3 +308,16 @@ class PeptideDataset(Dataset):
         else:
             peptide = ''.join([INVERSE_AA_MAP[aa.item()] for aa in dense])
         return peptide
+
+
+def tile_peptides(fasta_file: str, lengths: Tuple[int,...] = (8, 9, 10, 11, 12)) -> PeptideDataset:
+    lengths_set = set(lengths)
+    if not (lengths_set <= {8, 9, 10, 11, 12}):
+        raise ValueError("Lengths must be contained in {8, 9, 10, 11, 12}.")
+
+    peptides = [str(record.seq[start:start+length])
+                for length in lengths_set
+                for record in SeqIO.parse(fasta_file, "fasta")
+                for start in range(0, len(record) - length + 1)]
+
+    return PeptideDataset(peptides)
