@@ -9,6 +9,7 @@
 project = 'hlathena'
 copyright = '2023, Sisi Sarkizova, Cleo Forman'
 author = 'Sisi Sarkizova, Cleo Forman'
+version = '2.0'
 
 
 import os
