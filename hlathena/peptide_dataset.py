@@ -96,7 +96,7 @@ class PeptideDataset(Dataset):
                 self.pep_df.insert(
                     loc=0,
                     column='ha__allele',
-                    value=self.pep_df[allele_col_name]
+                    value=self.clean_allele_names(self.pep_df[allele_col_name])
                 )
         elif allele_name is not None:
             if 'ha__allele' not in pep_df.columns:
@@ -308,6 +308,11 @@ class PeptideDataset(Dataset):
         else:
             peptide = ''.join([INVERSE_AA_MAP[aa.item()] for aa in dense])
         return peptide
+
+    @staticmethod
+    def clean_allele_names(alleles: Union[pd.Series, pd.DataFrame]):
+        replacements = ['\\*','HLA[-|*]',':', '[N|Q]$',' ','-']
+        return alleles.replace(replacements, '', regex=True)
 
 
 def tile_peptides(fasta_file: str, lengths: Tuple[int,...] = (8, 9, 10, 11, 12)) -> PeptideDataset:

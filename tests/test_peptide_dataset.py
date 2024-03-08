@@ -1,6 +1,5 @@
 import copy
 import os
-import time
 import unittest
 
 import pandas as pd
@@ -96,6 +95,16 @@ class TestPeptideDataset(unittest.TestCase):
         peptide_dataset_len_9_allele_a0101.subset_data(peplens=9, alleles='A0101')
         self.assertEqual(len(peptide_dataset_len_9_allele_a0101), 4)
 
+    def test_allele_standardization(self):
+        peptide_df = pd.DataFrame([['KSSFLSSPE', 'A*01:01'],
+                                   ['RTEAAFSYY', 'A*0101'],
+                                   ['ASPQTLVLY', 'A01:01'],
+                                   ['GVMLDDYIR', 'A0101'],
+                                   ['TVLCAAGQA', 'HLA-B*40:02'],
+                                   ], columns=['pep', 'allele'])
+        peptide_dataset = hlathena.PeptideDataset(peptide_df, allele_col_name='allele')
+        self.assertListEqual(peptide_dataset.get_alleles(), ['A0101', 'B4002'])
+
     def test_tile_peptides(self):
         fasta_path = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'fake_fasta.fa')
         tiled_peptide_dataset = hlathena.tile_peptides(fasta_path, (11, 12))
@@ -109,7 +118,6 @@ class TestPeptideDataset(unittest.TestCase):
         self.assertIn('LVLYLLLIDLLK', peptides)
 
         self.assertSetEqual({len(pep) for pep in peptides}, {11, 12})
-        end = time.time()
 
 if __name__ == '__main__':
     unittest.main()
