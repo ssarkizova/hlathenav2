@@ -119,5 +119,22 @@ class TestPeptideDataset(unittest.TestCase):
 
         self.assertSetEqual({len(pep) for pep in peptides}, {11, 12})
 
+        pep_df = tiled_peptide_dataset.pep_df
+
+        # The two peptides at the start of the second gene only occur once in the dataset.
+        self.assertEqual(len(pep_df[pep_df['pep'] == 'DTEFPNFKYDT']), 1)
+        self.assertEqual(len(pep_df[pep_df['pep'] == 'DTEFPNFKYDTE']), 1)
+
+        first_eleven = pep_df[pep_df['pep'] == 'DTEFPNFKYDT'].iloc[0]
+        self.assertEqual(first_eleven['length'], 11)
+        self.assertEqual(first_eleven['start_pos'], 0)
+        self.assertEqual(first_eleven['record_id'], 'TEST00000000002|TST2')
+
+        first_twelve = pep_df[pep_df['pep'] == 'DTEFPNFKYDTE'].iloc[0]
+        self.assertEqual(first_twelve['length'], 12)
+        self.assertEqual(first_twelve['start_pos'], 0)
+        self.assertEqual(first_twelve['record_id'], 'TEST00000000002|TST2')
+
+
 if __name__ == '__main__':
     unittest.main()

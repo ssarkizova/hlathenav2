@@ -320,9 +320,9 @@ def tile_peptides(fasta_file: str, lengths: Tuple[int,...] = (8, 9, 10, 11, 12))
     if not (lengths_set <= {8, 9, 10, 11, 12}):
         raise ValueError("Lengths must be contained in {8, 9, 10, 11, 12}.")
 
-    peptides = [str(record.seq[start:start+length])
-                for length in lengths_set
-                for record in SeqIO.parse(fasta_file, "fasta")
-                for start in range(0, len(record) - length + 1)]
+    data = [{'pep': str(record.seq[start:start+length]), 'record_id': record.id, 'start_pos': start, 'length': length}
+            for length in lengths_set
+            for record in SeqIO.parse(fasta_file, "fasta")
+            for start in range(0, len(record) - length + 1)]
 
-    return PeptideDataset(peptides)
+    return PeptideDataset(pd.DataFrame(data))
