@@ -1,27 +1,31 @@
-import math
-from typing import List
+"""Peptide dataset plotting module"""
+
 from collections import Counter
-import pandas as pd
-import numpy as np
-from matplotlib import pyplot as plt
-from scipy import stats
+import math
+from typing import List, Optional, Tuple, Union
+
 import logomaker
-import seaborn as sns
-import matplotlib.patches as mpatches
+from matplotlib import pyplot as plt
+from matplotlib.axes import Axes
 from matplotlib.colors import ListedColormap
+import matplotlib.patches as mpatches
+import numpy as np
+import pandas as pd
+from scipy import stats
+import seaborn as sns
 
 from hlathena.definitions import AMINO_ACIDS
 
-markers = list(plt.Line2D.filled_markers)
 
+markers = list(plt.Line2D.filled_markers)
 
 # TODO: SISI - we should have a version for this plotting function that takes
 #   in the peptide dataset class as well
 def plot_length(
         pep_df: pd.DataFrame,
         pep_col: str = 'ha__pep',
-        label_col: str = None,
-) -> None:
+        label_col: Optional[str] = None,
+) -> Axes:
     """Plot the distribution of peptide lengths.
 
     Args:
@@ -53,10 +57,10 @@ def plot_length(
 
 def plot_logo(
         pep_df: pd.DataFrame,
-        length: int = None,
+        length: Optional[int] = None,
         pep_col: str = 'ha__pep',
-        label_col: str = None,
-) -> None:
+        label_col: Optional[str] = None,
+) -> List[Axes]:
     """Plot the sequence logo for a given allele and peptide length.
 
     Args:
@@ -77,14 +81,16 @@ def plot_logo(
         raise IndexError("No peptides for plotting")
 
     pep_lengths = list({len(pep) for pep in peptides})
+    if len(pep_lengths) == 1:
+        length = pep_lengths[0]
 
-    if length is not None or len(pep_lengths) < 2:
+    if length is not None:
         if label_col is not None:
             num_cols = 3
             num_rows = math.ceil(len(pep_df[label_col].unique()) / num_cols)
             height_per_row = 2
             width_per_col = 4
-            fig = plt.figure(figsize=[width_per_col * num_cols, height_per_row * num_rows])
+            fig = plt.figure(figsize=(width_per_col * num_cols, height_per_row * num_rows))
 
             for i, (label, d) in enumerate(pep_df.groupby(label_col)):
                 num_row, num_col = divmod(i, num_cols)
@@ -97,12 +103,13 @@ def plot_logo(
                 ax.set_xticks([])
                 ax.set_yticks([])
                 ax.set_title(f'{label}, Length {length} (n={len(peps)})')
+            return fig.get_axes()
         else:
             peps = [pp for pp in peptides if len(pp) == length]
             logo_df = get_logo_df(peps, length)
             logo = logomaker.Logo(logo_df)
             logo.ax.set_title(f'Length {length} (n={len(peps)})')
-
+            return [logo.ax]
     else:
         num_cols = 3
         num_rows = math.ceil(len(pep_lengths) / num_cols)
@@ -128,16 +135,17 @@ def plot_logo(
 
         # style and save figure
         fig.tight_layout()
+        return fig.get_axes()
 
 
 def plot_umap(
         umap_embedding_df: pd.DataFrame,
         clustered: bool = False,
-        label_col: str = None,
-        title: str = None,
-        save_path: str = None,
+        label_col: Optional[str] = None,
+        title: Optional[str] = None,
+        save_path: Optional[str] = None,
         countplot_log_scale: bool = False,
-) -> None:
+) -> Union[Axes, Tuple[Axes, Axes]]:
     """Plot the UMAP for a given UMAP embedding dataframe. 
 
     Args:
@@ -152,7 +160,7 @@ def plot_umap(
     """
 
     if clustered:
-        plot_clustered_umap(
+        return plot_clustered_umap(
             umap_embedding_df,
             label_col=label_col,
             title=title,
@@ -195,15 +203,16 @@ def plot_umap(
             plt.title(title, fontsize=15)
 
         if save_path is not None:
-            plt.savefig(save_path)
+            plt.savefig(save_path);
 
-
+        return ax
+    
+    
 def get_logo_df(
         peptides: List[str],
         length: int
 ) -> pd.DataFrame:
     """Creates amino acid frequency dataframe.
-
     Args:
         peptides: A list of peptide sequences.
         length: The length of peptides to include in the returned dataframe.
@@ -233,11 +242,11 @@ def get_logo_df(
 
 def plot_clustered_umap(
         umap_embedding_df: pd.DataFrame,
-        label_col: str = None,
-        title: str = None,
-        save_path: str = None,
+        label_col: Optional[str] = None,
+        title: Optional[str] = None,
+        save_path: Optional[str] = None,
         countplot_log_scale: bool = False,
-) -> None:
+) -> Tuple[Axes, Axes]:
     """Plot the  clustered UMAP for a given UMAP embedding dataframe. 
 
     Args:
@@ -306,4 +315,4 @@ def plot_clustered_umap(
         plt.savefig(save_path)
 
     plt.tight_layout()
-    plt.show()
+    return (ax0, ax1)
