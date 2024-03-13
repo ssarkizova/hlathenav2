@@ -10,6 +10,14 @@ cd hlathenav2
 pip install .
 ```
 
+### Documentation
+
+For further package documentation, visit [https://ssarkizova.github.io/hlathenav2/](https://ssarkizova.github.io/hlathenav2/).
+
+### Demo
+
+For usage examples, visit our [Jupyter notebook tutorial](https://github.com/ssarkizova/hlathenav2/blob/main/notebooks/tutorial.ipynb).
+
 
 Project Organization
 ------------
