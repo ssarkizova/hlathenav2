@@ -1,6 +1,0 @@
-﻿hlathena.peptide\_projection.PCA\_numpy\_SVD
-============================================
-
-.. currentmodule:: hlathena.peptide_projection
-
-.. autofunction:: PCA_numpy_SVD

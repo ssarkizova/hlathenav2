@@ -36,6 +36,9 @@
           <a href="index.html" class="icon icon-home">
             hlathena
           </a>
+              <div class="version">
+                2.0
+              </div>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
@@ -47,29 +50,33 @@
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">API</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#analysis-tools">Analysis Tools</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#plotting-tools">Plotting Tools</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="hlathena.plotting.plot_length.html">hlathena.plotting.plot_length</a></li>
 <li class="toctree-l3"><a class="reference internal" href="hlathena.plotting.plot_logo.html">hlathena.plotting.plot_logo</a></li>
 <li class="toctree-l3"><a class="reference internal" href="hlathena.plotting.plot_umap.html">hlathena.plotting.plot_umap</a></li>
 <li class="toctree-l3"><a class="reference internal" href="hlathena.plotting.plot_clustered_umap.html">hlathena.plotting.plot_clustered_umap</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#peptide-projection-tools">Peptide Projection Tools</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#annotation-tools">Annotation Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#peptide-projection-tools">Peptide Projection Tools</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="hlathena.peptide_projection.PCA_encode.html">hlathena.peptide_projection.PCA_encode</a></li>
+<li class="toctree-l3"><a class="reference internal" href="hlathena.peptide_projection.get_umap_embedding.html">hlathena.peptide_projection.get_umap_embedding</a></li>
+<li class="toctree-l3"><a class="reference internal" href="hlathena.peptide_projection.get_peptide_clustering.html">hlathena.peptide_projection.get_peptide_clustering</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#annotation-tools">Annotation Tools</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="hlathena.annotate.list_tcga_expression_references.html">hlathena.annotate.list_tcga_expression_references</a></li>
+<li class="toctree-l3"><a class="reference internal" href="hlathena.annotate.get_reference_gene_ids.html">hlathena.annotate.get_reference_gene_ids</a></li>
+<li class="toctree-l3"><a class="reference internal" href="hlathena.annotate.add_tcga_expression.html">hlathena.annotate.add_tcga_expression</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#prediction-tools">Prediction Tools</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="hlathena.predict.predict.html">hlathena.predict.predict</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#training-tools">Training Tools</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="hlathena.trainer.run_training.html">hlathena.trainer.run_training</a></li>
-<li class="toctree-l3"><a class="reference internal" href="hlathena.trainer.trainer.html">hlathena.trainer.trainer</a></li>
-<li class="toctree-l3"><a class="reference internal" href="hlathena.peptide_nn.PeptideRandomSampler.html">hlathena.peptide_nn.PeptideRandomSampler</a></li>
-<li class="toctree-l3"><a class="reference internal" href="hlathena.peptide_nn.train.html">hlathena.peptide_nn.train</a></li>
-<li class="toctree-l3"><a class="reference internal" href="hlathena.peptide_nn.save_model.html">hlathena.peptide_nn.save_model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#amino-acid-featurization-tools">Amino Acid Featurization Tools</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="hlathena.amino_acid_feature_map.AminoAcidFeatureMap.html">hlathena.amino_acid_feature_map.AminoAcidFeatureMap</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#model-evaluation-tools">Model Evaluation Tools</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#amino-acid-featurization-tools">Amino Acid Featurization Tools</a></li>
 </ul>
 </li>
 </ul>
@@ -101,14 +108,14 @@
   <section id="api">
 <h1>API<a class="headerlink" href="#api" title="Permalink to this heading"></a></h1>
 <p><em>hlathena</em> can be used as a python package. Import hlathena by:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">hlathena</span> <span class="k">as</span> <span class="nn">hat</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">hlathena</span> <span class="k">as</span> <span class="nn">ha</span>
 </pre></div>
 </div>
-<section id="analysis-tools">
-<h2>Analysis Tools<a class="headerlink" href="#analysis-tools" title="Permalink to this heading"></a></h2>
+<section id="plotting-tools">
+<h2>Plotting Tools<a class="headerlink" href="#plotting-tools" title="Permalink to this heading"></a></h2>
 <table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="index.html#hlathena.plotting.plot_length" title="hlathena.plotting.plot_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.plotting.plot_length</span></code></a>(pep_df[, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="hlathena.plotting.plot_length.html#hlathena.plotting.plot_length" title="hlathena.plotting.plot_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.plotting.plot_length</span></code></a>(pep_df[, ...])</p></td>
 <td><p>Plot the distribution of peptide lengths.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="hlathena.plotting.plot_logo.html#hlathena.plotting.plot_logo" title="hlathena.plotting.plot_logo"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.plotting.plot_logo</span></code></a>(pep_df[, ...])</p></td>
@@ -125,9 +132,35 @@
 </section>
 <section id="peptide-projection-tools">
 <h2>Peptide Projection Tools<a class="headerlink" href="#peptide-projection-tools" title="Permalink to this heading"></a></h2>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="hlathena.peptide_projection.PCA_encode.html#hlathena.peptide_projection.PCA_encode" title="hlathena.peptide_projection.PCA_encode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.peptide_projection.PCA_encode</span></code></a>(...)</p></td>
+<td><p>Encodes peptides and performs PCA.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="hlathena.peptide_projection.get_umap_embedding.html#hlathena.peptide_projection.get_umap_embedding" title="hlathena.peptide_projection.get_umap_embedding"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.peptide_projection.get_umap_embedding</span></code></a>(...)</p></td>
+<td><p>Create UMAP embedding dataframe for peptides.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="hlathena.peptide_projection.get_peptide_clustering.html#hlathena.peptide_projection.get_peptide_clustering" title="hlathena.peptide_projection.get_peptide_clustering"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.peptide_projection.get_peptide_clustering</span></code></a>(...)</p></td>
+<td><p>Cluster peptides using DBSCAN algorithm on the UMAP embedding.</p></td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="annotation-tools">
 <h2>Annotation Tools<a class="headerlink" href="#annotation-tools" title="Permalink to this heading"></a></h2>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="hlathena.annotate.list_tcga_expression_references.html#hlathena.annotate.list_tcga_expression_references" title="hlathena.annotate.list_tcga_expression_references"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.annotate.list_tcga_expression_references</span></code></a>()</p></td>
+<td><p>List available TCGA expression reference datasets</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="hlathena.annotate.get_reference_gene_ids.html#hlathena.annotate.get_reference_gene_ids" title="hlathena.annotate.get_reference_gene_ids"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.annotate.get_reference_gene_ids</span></code></a>(pep_df)</p></td>
+<td><p>Method to annotate peptides with gene IDs.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="hlathena.annotate.add_tcga_expression.html#hlathena.annotate.add_tcga_expression" title="hlathena.annotate.add_tcga_expression"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.annotate.add_tcga_expression</span></code></a>(...[, ...])</p></td>
+<td><p>Add column with TCGA reference expression data.</p></td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="prediction-tools">
 <h2>Prediction Tools<a class="headerlink" href="#prediction-tools" title="Permalink to this heading"></a></h2>
@@ -139,39 +172,13 @@
 </tbody>
 </table>
 </section>
-<section id="training-tools">
-<h2>Training Tools<a class="headerlink" href="#training-tools" title="Permalink to this heading"></a></h2>
-<table class="autosummary longtable docutils align-default">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="hlathena.trainer.run_training.html#hlathena.trainer.run_training" title="hlathena.trainer.run_training"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.trainer.run_training</span></code></a>(hits, decoys)</p></td>
-<td><p>Run the training process for a peptide prediction model.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="hlathena.trainer.trainer.html#hlathena.trainer.trainer" title="hlathena.trainer.trainer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.trainer.trainer</span></code></a>(pep_df, label_col, ...)</p></td>
-<td><p>Train and evaluate a peptide prediction model.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="hlathena.peptide_nn.PeptideRandomSampler.html#hlathena.peptide_nn.PeptideRandomSampler" title="hlathena.peptide_nn.PeptideRandomSampler"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.peptide_nn.PeptideRandomSampler</span></code></a>(...)</p></td>
-<td><p>Creates a custom random sampler</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="hlathena.peptide_nn.train.html#hlathena.peptide_nn.train" title="hlathena.peptide_nn.train"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.peptide_nn.train</span></code></a>(model, ...[, ...])</p></td>
-<td><p>Trains model using training data</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="hlathena.peptide_nn.save_model.html#hlathena.peptide_nn.save_model" title="hlathena.peptide_nn.save_model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.peptide_nn.save_model</span></code></a>(model, fold, ...)</p></td>
-<td><p>Saves model and configuration info to model directories</p></td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="model-evaluation-tools">
-<h2>Model Evaluation Tools<a class="headerlink" href="#model-evaluation-tools" title="Permalink to this heading"></a></h2>
-<table class="autosummary longtable docutils align-default">
-<tbody>
-</tbody>
-</table>
-</section>
 <section id="amino-acid-featurization-tools">
 <h2>Amino Acid Featurization Tools<a class="headerlink" href="#amino-acid-featurization-tools" title="Permalink to this heading"></a></h2>
 <table class="autosummary longtable docutils align-default">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="hlathena.amino_acid_feature_map.AminoAcidFeatureMap.html#hlathena.amino_acid_feature_map.AminoAcidFeatureMap" title="hlathena.amino_acid_feature_map.AminoAcidFeatureMap"><code class="xref py py-obj docutils literal notranslate"><span class="pre">hlathena.amino_acid_feature_map.AminoAcidFeatureMap</span></code></a>([...])</p></td>
+<td><p>Creates an amino acid feature mapping from a list of amino acid property tables.</p></td>
+</tr>
 </tbody>
 </table>
 </section>

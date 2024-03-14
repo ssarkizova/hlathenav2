@@ -1,6 +1,0 @@
-﻿hlathena.trainer.trainer
-========================
-
-.. currentmodule:: hlathena.trainer
-
-.. autofunction:: trainer

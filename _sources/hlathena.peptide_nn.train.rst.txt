@@ -1,6 +1,0 @@
-﻿hlathena.peptide\_nn.train
-==========================
-
-.. currentmodule:: hlathena.peptide_nn
-
-.. autofunction:: train
