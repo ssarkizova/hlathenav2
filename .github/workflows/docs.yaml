@@ -11,6 +11,8 @@ jobs:
     - name: Install pandoc
       uses: pandoc/actions/setup@v1
     - uses: actions/checkout@v4
+    - name: try pandoc
+      run: pandoc
     - name: Build HTML
       uses: ammaraskar/sphinx-action@7.1.2
     - name: Upload artifacts
