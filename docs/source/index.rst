@@ -6,31 +6,11 @@
 Welcome to hlathena's documentation!
 ====================================
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
-
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-
 Contents
 --------
 
 .. toctree::
+   :maxdepth: 2
 
-   usage
-   api
-   
-Plotting length
-----------------
-
-To plot the length distribution of a list of peptides
-you can use the ``hlathena.plot_length()`` function:
-
-.. autofunction:: hlathena.plotting.plot_length
+   usage.rst
+   api.rst
