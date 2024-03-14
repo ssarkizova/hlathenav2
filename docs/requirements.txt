@@ -1,4 +1,5 @@
 sphinx>=6.1.3
 sphinx_rtd_theme
+nbsphinx
 docutils>=0.19
 -e .

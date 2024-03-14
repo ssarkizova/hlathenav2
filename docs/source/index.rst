@@ -11,7 +11,6 @@ Welcome to hlathena's documentation!
    :caption: Contents:
 
 
-
 Indices and tables
 ==================
 
@@ -25,6 +24,7 @@ Contents
 .. toctree::
 
    usage
+   notebooks/tutorial
    api
    
 Plotting length
