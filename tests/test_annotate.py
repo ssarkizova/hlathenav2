@@ -28,7 +28,7 @@ class TestAnnotate(unittest.TestCase):
         self.assertEqual(tcga_expression_references.loc['THYM'].iloc[0], 'Thymoma')
 
     def test_get_reference_gene_ids(self):
-        ref_fasta = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'fake_fasta.fa')
+        ref_fasta = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'data/fake_fasta.fa')
         reference_df = annotate.get_reference_gene_ids(self.peptide_dataset, ref_fasta=ref_fasta).pep_df
         # The peptide 'AADIFYSRY' occurs in genes TST1, TST2 and TST3 in the fake fasta file.
         self.assertEqual(len(reference_df[reference_df['pep'] == 'AADIFYSRY']), 3)

@@ -106,7 +106,7 @@ class TestPeptideDataset(unittest.TestCase):
         self.assertListEqual(peptide_dataset.get_alleles(), ['A0101', 'B4002'])
 
     def test_tile_peptides(self):
-        fasta_path = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'fake_fasta.fa')
+        fasta_path = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'data/fake_fasta.fa')
         tiled_peptide_dataset = hlathena.tile_peptides(fasta_path, (10, 11))
         peptides = tiled_peptide_dataset.get_peptides()
 
@@ -136,7 +136,7 @@ class TestPeptideDataset(unittest.TestCase):
         self.assertEqual(first_twelve['record_id'], 'TEST00000000002|TST2')
 
     def test_tile_peptides_warning(self):
-        fasta_path = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'fake_fasta.fa')
+        fasta_path = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'data/fake_fasta.fa')
         with self.assertWarnsRegex(Warning, "length outside the range"):
             hlathena.tile_peptides(fasta_path, (7,))
 
