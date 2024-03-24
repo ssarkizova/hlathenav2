@@ -4,7 +4,6 @@ import logging
 from typing import List, Union, Optional, Tuple
 import warnings
 
-from Bio import SeqIO
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_list_like
@@ -313,17 +312,3 @@ class PeptideDataset(Dataset):
     def clean_allele_names(alleles: Union[pd.Series, pd.DataFrame]):
         replacements = ['\\*','HLA[-|*]',':', '[N|Q]$',' ','-']
         return alleles.replace(replacements, '', regex=True)
-
-
-def tile_peptides(fasta_file: str, lengths: Tuple[int,...] = (8, 9, 10, 11)) -> PeptideDataset:
-    lengths_set = set(lengths)
-    if not (lengths_set <= {8, 9, 10, 11}):
-        warnings.warn("Peptides of length outside the range 8-11 may not be supported by \
-                      other HLAthena functions.")
-
-    data = [{'pep': str(record.seq[start:start+length]), 'record_id': record.id, 'start_pos': start, 'length': length}
-            for length in lengths_set
-            for record in SeqIO.parse(fasta_file, "fasta")
-            for start in range(0, len(record) - length + 1)]
-
-    return PeptideDataset(pd.DataFrame(data))
