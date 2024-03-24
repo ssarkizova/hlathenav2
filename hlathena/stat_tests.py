@@ -3,25 +3,27 @@
 import pandas as pd
 import scipy.stats
 
-from hlathena.peptide_dataset import PeptideDataset
-
 
 def peptide_length_chi2(
-    peps1: PeptideDataset, peps2: PeptideDataset
+    pep_df: pd.DataFrame,
+    label_col: str,
+    pep_col: str = 'ha__pep'
 ) -> scipy.stats.contingency.Chi2ContingencyResult:
-    """Perform a chi-squared test on the lengths of peptides in two peptide datasets.
+    """Perform a chi-squared test comparing the lengths of peptides with different labels.
 
     Args:
-        peps1: The first peptide dataset to be compared.
-        peps2: The scond peptide dataset to be compared.
+        pep_df: A dataframe with a column of peptide sequences.
+        label_col: The name of a column denoting the peptide category for length
+            comparison.
+        pep_col: The name of the peptide sequence column. Default value is 'ha__pep'.
 
     Returns:
         A Chi2ContingencyResult containing the results of the test.
     """
 
-    lengths = pd.concat(
-        [peps1.pep_df['ha__pep'].str.len().value_counts(),
-        peps2.pep_df['ha__pep'].str.len().value_counts()],
-        axis=1).fillna(0).astype(int)
+    # Create a dataframe whose rows are labels and whose columns are peptide length.
+    # The entry for a particular (label, length) pair is the number of peptides with that length
+    # and label.
+    lengths = pep_df[pep_col].str.len().groupby(pep_df[label_col]).value_counts().unstack().fillna(0).astype(int)
 
     return scipy.stats.chi2_contingency(lengths)
