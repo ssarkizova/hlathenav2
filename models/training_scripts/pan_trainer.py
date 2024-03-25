@@ -16,6 +16,12 @@ import glob
 import argparse
 import logging
 
+# ### For Profiling
+# import cProfile
+# import pstats
+# import io
+# from pstats import SortKey
+
 
 def create_config_dict(device, epochs, lr, dr, batch_size, decoy_mul, eval_decoy_ratio, fold, aa_features, featname,
                        pepfeats_dict, seed):
@@ -485,7 +491,8 @@ def train_preset_split():
                 test_subsampler = peptide_nn.PeptideRandomSampler([i for i in range(len(test_ds))], seed)
                 val_subsampler = peptide_nn.PeptideRandomSampler([i for i in range(len(valid_ds))], seed)
 
-                num_workers = 4#max(1, len(os.sched_getaffinity(0)))
+                num_workers = 4  # max(1, len(os.sched_getaffinity(0)))
+                print(f"Num workers: {num_workers}") # TODO: check this
                 prefetch_factor = 16 #2**num_workers
                 pin_memory = True
                 # 16 workers 16 prefetch pin memory True seed 123 2 reps = 1:16x3 min from device = cuda to stat printout
@@ -525,10 +532,10 @@ def train_preset_split():
                 hla_dim = 4008  # TODO: hard-coding for now
                 # src_vocab2 = 15000
                 # model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1)
-                # version=8
-                d_model = 512
+                version=8
+                d_model = 22
                 # print(f'Running version {version}...')
-                model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim, N=6, d_model=d_model, d_ff=2048, h=8, model_type="embed") # trying diff pos enc style, remove or switch to 2 to change back
+                model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim, N=6, d_model=d_model, d_ff=2048, h=1, model_type="encode", version=8) # trying diff pos enc style, remove or switch to 2 to change back
                 peptide_transformer.initialize_param(model)
 
                 # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
@@ -799,4 +806,21 @@ def trainer(args,
 
 if __name__ == "__main__":
     # main()
+    ### Profiler
+    # ob = cProfile.Profile()
+    # ob.enable()
+    # print("Profiler enabled...")
+    ###
+    
     train_preset_split()
+
+    ### Profiler
+    # ob.disable()
+    # print("Profiler disabled...")
+    # sortby = SortKey.CUMULATIVE
+    # filepath = "/home/clf176/Desktop/hlathena_package/hlathenav2/models/output/PROFILER_OUTPUT_032124_DUMP.txt"
+    # print(f"Profiler printing to {filepath}...")
+    # with open(filepath,'w') as stream:
+    #     ps = pstats.Stats(ob, stream=stream).sort_stats(sortby)
+    #     ps.dump_stats(filepath)
+    ###
