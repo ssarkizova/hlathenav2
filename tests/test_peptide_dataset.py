@@ -104,5 +104,6 @@ class TestPeptideDataset(unittest.TestCase):
         peptide_dataset = hlathena.PeptideDataset(peptide_df, allele_col_name='allele')
         self.assertListEqual(peptide_dataset.get_alleles(), ['A0101', 'B4002'])
 
+
 if __name__ == '__main__':
     unittest.main()

@@ -11,3 +11,4 @@ from hlathena.annotate import list_tcga_expression_references, get_reference_gen
 from hlathena.peptide_dataset import PeptideDataset
 from hlathena.peptide_dataset_train import PeptideDatasetTrain
 from hlathena.amino_acid_feature_map import AminoAcidFeatureMap
+from hlathena.util import tile_peptides
