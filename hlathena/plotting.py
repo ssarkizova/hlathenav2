@@ -15,7 +15,7 @@ from scipy import stats
 import seaborn as sns
 
 from hlathena.definitions import AMINO_ACIDS
-from hlathena.stat_tests import peptide_length_chi2
+from hlathena.stat_tests import peptide_cluster_chi2, peptide_length_chi2
 
 
 markers = list(plt.Line2D.filled_markers)
@@ -268,7 +268,7 @@ def plot_clustered_umap(
         save_path: Path where that figure will be saved to. Optional, default
             is None.
     """
-    nclust = len(umap_embedding_df['cluster'].unique())
+    nclust = umap_embedding_df['cluster'].nunique()
     sns_colors = sns.color_palette('tab20', nclust)
     cmap = ListedColormap(sns_colors)
 
@@ -288,6 +288,15 @@ def plot_clustered_umap(
 
         sns.countplot(data=umap_embedding_df, y='cluster', hue=label_col, ax=ax1)
         sns.move_legend(ax1, "upper left", bbox_to_anchor=(1, 1))
+
+        chi_squared = peptide_cluster_chi2(umap_embedding_df, label_col=label_col)
+        ax0.text(
+            0.02,
+            0.98,
+            f'χ2 = {chi_squared.statistic:.2f}\np = {chi_squared.pvalue:.2f}',
+            transform=ax0.transAxes,
+            verticalalignment='top'
+        )
 
         if countplot_log_scale:
             ax1.set_xscale('log')
