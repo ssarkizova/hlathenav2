@@ -15,6 +15,7 @@ from scipy import stats
 import seaborn as sns
 
 from hlathena.definitions import AMINO_ACIDS
+from hlathena.stat_tests import peptide_length_chi2
 
 
 markers = list(plt.Line2D.filled_markers)
@@ -49,6 +50,14 @@ def plot_length(
 
     if label_col is not None:
         sns.countplot(data=pep_df, x='length', hue=label_col, ax=ax)
+        chi_squared = peptide_length_chi2(pep_df, label_col, pep_col=pep_col)
+        ax.text(
+            0.02,
+            0.98,
+            f'χ2 = {chi_squared.statistic:.2f}\np = {chi_squared.pvalue:.2f}',
+            transform=ax.transAxes,
+            verticalalignment='top'
+        )
     else:
         pep_df['length'].value_counts().sort_index().plot.bar(ax=ax)
         ax.set_title(f'Length distribution (n={pep_df.shape[0]})')
