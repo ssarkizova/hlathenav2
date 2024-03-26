@@ -27,3 +27,15 @@ def peptide_length_chi2(
     lengths = pep_df[pep_col].str.len().groupby(pep_df[label_col]).value_counts().unstack().fillna(0).astype(int)
 
     return scipy.stats.chi2_contingency(lengths)
+
+
+def peptide_cluster_chi2(
+    pep_clustering: pd.DataFrame,
+    label_col: str
+) -> scipy.stats.contingency.Chi2ContingencyResult:
+    if 'cluster' not in pep_clustering.columns:
+        raise ValueError('Please ensure that your DataFrame contains a column named "cluster".')
+
+    return scipy.stats.chi2_contingency(
+        pep_clustering.groupby(label_col)['cluster'].value_counts().unstack().fillna(0).astype(int)
+    )

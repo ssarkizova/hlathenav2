@@ -2,7 +2,7 @@ import unittest
 
 import pandas as pd
 
-from hlathena.stat_tests import peptide_length_chi2
+from hlathena.stat_tests import peptide_cluster_chi2, peptide_length_chi2
 
 
 class TestStatTests(unittest.TestCase):
@@ -41,10 +41,36 @@ class TestStatTests(unittest.TestCase):
             columns=['ha__pep', 'label']
         )
         chi2_values = peptide_length_chi2(pep_df, 'label')
-        print(chi2_values)
 
         # Since the third label has a very different distribution, the p-value should be low.
         self.assertLess(chi2_values.pvalue, 0.01)
+
+    def test_peptide_cluster_chi2_different(self):
+        # Three labels in total. The first two are mostly evenly spread between the three clusters.
+        # The last one is concentrated in the third cluster.
+        cluster_df = pd.DataFrame(
+            333 * [[0, 0]] + 333 * [[1, 0]] + 334 * [[2, 0]] +
+            333 * [[0, 1]] + 334 * [[1, 1]] + 333 * [[2, 1]] +
+            2 * [[0, 2]] + 3 * [[1, 2]] + 995 * [[2, 2]],
+            columns=['cluster', 'label']
+        )
+
+        chi2_values = peptide_cluster_chi2(cluster_df, 'label')
+        # The cluster distributions are different, so should have a low p-value.
+        self.assertLess(chi2_values.pvalue, 0.01)
+
+    def test_peptide_cluster_chi2_similar(self):
+        # Three labels in total, all are mostly evenly spread between the three clusters.
+        cluster_df = pd.DataFrame(
+            333 * [[0, 0]] + 333 * [[1, 0]] + 334 * [[2, 0]] +
+            333 * [[0, 1]] + 334 * [[1, 1]] + 333 * [[2, 1]] +
+            334 * [[0, 2]] + 333 * [[1, 2]] + 333 * [[2, 2]],
+            columns=['cluster', 'label']
+        )
+
+        chi2_values = peptide_cluster_chi2(cluster_df, 'label')
+        # The cluster distributions are similar, so the p-value should be high.
+        self.assertGreater(chi2_values.pvalue, 0.9)
 
 
 if __name__ == '__main__':
