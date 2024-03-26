@@ -41,7 +41,6 @@ class TestStatTests(unittest.TestCase):
             columns=['ha__pep', 'label']
         )
         chi2_values = peptide_length_chi2(pep_df, 'label')
-        print(chi2_values)
 
         # Since the third label has a very different distribution, the p-value should be low.
         self.assertLess(chi2_values.pvalue, 0.01)
