@@ -24,11 +24,11 @@ class PeptideDataset(Dataset):
         self,
         pep_df: Union[pd.DataFrame, List[str]],
         allele_name: Optional[str] = None,
-        pep_col_name: Optional[str] = 'pep',
+        pep_col_name: str = 'pep',
         allele_col_name: Optional[str] = None,
         target_col_name: Optional[str] = None,
-        encode: Optional[bool] = False,
-        reset_index: Optional[bool] = False,
+        encode: bool = False,
+        reset_index: bool = False,
     ) -> None:
         """Initializes a peptide dataset.
 
@@ -56,16 +56,16 @@ class PeptideDataset(Dataset):
         if reset_index:
             self.pep_df.reset_index(drop=True, inplace=True)
 
-        # Check that the specified peptide column name exist
+        # Check that the specified peptide column name exists
         if pep_col_name not in pep_df.columns:
             raise KeyError(f"Column {pep_col_name} does not exist!")
 
-        # If specified, check that the allele column name exist
+        # If specified, check that the allele column name exists
         if allele_col_name is not None:
             if allele_col_name not in pep_df.columns:
                 raise KeyError(f"Column {allele_col_name} does not exist!")
 
-        # If specified, check that the allele column name exist
+        # If specified, check that the allele column name exists
         if target_col_name is not None:
             if target_col_name not in pep_df.columns:
                 raise KeyError(f"Column {target_col_name} does not exist!")
@@ -87,9 +87,10 @@ class PeptideDataset(Dataset):
 
         if (allele_name is not None) and (allele_col_name is not None):
             logging.warning(
-                "Both allele_name or allele_column_name are specified; allele_name will be ignored"
+                "Both allele_name and allele_column_name are specified; allele_name will be ignored"
             )
 
+        # TODO: supported alleles provided as sequence
         if allele_col_name is not None:
             if 'ha__allele' not in pep_df.columns:
                 self.pep_df.insert(
@@ -118,8 +119,6 @@ class PeptideDataset(Dataset):
         self._check_peps_present()
         self._check_valid_sequences()
 
-        # TODO: Clean allele names e.g.: HLA*A01:01  -> A0101
-        # TODO: supported alleles provided as sequence
 
         self.encode = encode
         if self.encode:
