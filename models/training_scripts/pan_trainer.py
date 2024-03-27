@@ -3,6 +3,7 @@ from hlathena.peptide_dataset_train import PeptideDatasetTrain
 from hlathena import peptide_nn
 from hlathena import peptide_transformer
 from hlathena.training_evaluation import TrainingEvaluation
+from hlathena import peptide_ESM_transformer
 
 import torch.utils.data as torch_data
 import torch
@@ -16,11 +17,11 @@ import glob
 import argparse
 import logging
 
-# ### For Profiling
-# import cProfile
-# import pstats
-# import io
-# from pstats import SortKey
+### For Profiling
+import cProfile
+import pstats
+import io
+from pstats import SortKey
 
 
 def create_config_dict(device, epochs, lr, dr, batch_size, decoy_mul, eval_decoy_ratio, fold, aa_features, featname,
@@ -528,15 +529,37 @@ def train_preset_split():
                                                     pin_memory=pin_memory,
                                                     prefetch_factor=prefetch_factor,
                                                     persistent_workers=True)
-                src_vocab1 = 22
-                hla_dim = 4008  # TODO: hard-coding for now
-                # src_vocab2 = 15000
-                # model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1)
-                version=8
-                d_model = 22
-                # print(f'Running version {version}...')
-                model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim, N=6, d_model=d_model, d_ff=2048, h=1, model_type="encode", version=8) # trying diff pos enc style, remove or switch to 2 to change back
-                peptide_transformer.initialize_param(model)
+
+                ### CONCAT V8 MODEL
+                # src_vocab1 = 22
+                # hla_dim = 4008  # TODO: hard-coding for now
+                # # src_vocab2 = 15000
+                # # model = peptide_transformer.OverallModel(src_vocab1, src_vocab2, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1)
+                # version=8
+                # d_model = 22
+                # # print(f'Running version {version}...')
+                
+                # model = peptide_transformer.OverallModel_2(src_vocab1, hla_dim, N=6, d_model=d_model, d_ff=2048, h=1, model_type="encode", version=8) # trying diff pos enc style, remove or switch to 2 to change back
+                # peptide_transformer.initialize_param(model)
+                ###
+
+                ### CONCAT ESM EMBEDDING MODEL
+                input_dim = 1280
+                num_layers = 6 #can change
+                num_heads = 8 #can change
+                d_ff = 2048
+                criterion = nn.BCELoss()
+                encode_choice = "esm"
+                model = peptide_ESM_transformer.TransformerEncoderClassifier_Model1(
+                    ntoken = 22, 
+                    d_model = input_dim, 
+                    nhead = num_heads, 
+                    d_hid = d_ff, 
+                    nlayers = num_layers,
+                    dropout = 0.1
+                ).to(device)
+                peptide_ESM_transformer.initialize_param(model)
+                ###
 
                 # model = peptide_nn.PeptideNN2(feature_dims, args.dropout_rate)
                 if torch.cuda.device_count() > 1:
@@ -544,8 +567,13 @@ def train_preset_split():
                     model = nn.DataParallel(model)
                 model.to(device)
                 logging.info(f"Device: {str(device)}")
+
+                ### NN model
                 # optimizer_dict = peptide_nn.train(model, trainloader, args.learning_rate, args.epochs, device, valloader)
-                optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, lr_warmup=4000)
+                ### Concat Transformer V8 model
+                # optimizer_dict = peptide_transformer.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, lr_warmup=4000)
+                ### ESM Concat Transformer model
+                optimizer_dict = peptide_ESM_transformer.train(model, trainloader, args.learning_rate, args.epochs, device, valloader, lr_warmup=4000)
 
                 # Create model and train
                 model_config = create_config_dict(device=device, epochs=args.epochs, lr=args.learning_rate,
@@ -555,7 +583,10 @@ def train_preset_split():
                                                   fold=fold, aa_features=args.aa_feature_folder,
                                                   featname=featname, pepfeats_dict=pep_feature_sets_dict, seed=seed)
 
-                peptide_transformer.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
+                ### Concat Transformer v8 model
+                # peptide_transformer.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
+                ### ESM Concat Transformer Model
+                peptide_ESM_transformer.save_model(model, fold, models_dir, configs_dir, optimizer_dict, model_config)
 
                 _, targets, indices, preds = peptide_transformer.evaluate(model, testloader, args.pred_replicates, device)
                 # feature_dims = train_ds.feature_dimensions()
@@ -806,21 +837,22 @@ def trainer(args,
 
 if __name__ == "__main__":
     # main()
-    ### Profiler
+    
+    # ## Profiler
     # ob = cProfile.Profile()
     # ob.enable()
     # print("Profiler enabled...")
-    ###
+    # ##
     
     train_preset_split()
 
-    ### Profiler
+    # ## Profiler
     # ob.disable()
     # print("Profiler disabled...")
     # sortby = SortKey.CUMULATIVE
-    # filepath = "/home/clf176/Desktop/hlathena_package/hlathenav2/models/output/PROFILER_OUTPUT_032124_DUMP.txt"
+    # filepath = "/home/clf176/Desktop/hlathena_package/hlathenav2/models/output/ESM_RUN_PROFILE_032524_DUMP.txt"
     # print(f"Profiler printing to {filepath}...")
     # with open(filepath,'w') as stream:
     #     ps = pstats.Stats(ob, stream=stream).sort_stats(sortby)
     #     ps.dump_stats(filepath)
-    ###
+    # ##

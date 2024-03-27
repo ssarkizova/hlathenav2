@@ -44,7 +44,8 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
                  folds: Optional[int] = None,
                  aa_feature_files: List[os.PathLike] = None,
                  hla_encoding_file: Optional[os.PathLike] = None,
-                 reset_index: Optional[bool] = True) -> None:
+                 reset_index: Optional[bool] = True,
+                ) -> None:
         """ Inits a peptide dataset which featurizes the hit and decoy peptides.
 
         Args:
@@ -97,16 +98,20 @@ class PeptideDatasetTrain(PeptideDataset, Dataset):
                                      is_pan_allele=len(self.get_alleles()) > 1)
 
     def __getitem__(self, i):# -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, float, int]:
-        # # For Transformer V2
+        # # For ESM Transformer
         pep, hla, tgt = self.pep_at(i), self.allele_at(i), self.tgt_at(i)
-        pep_tensor, pep_mask = self.encoder.encode_peptide_notflat_with_BOS(pep)
-        hla_tensor, hla_mask = self.encoder.encode_hla_fullseq_notflat(hla)
-        return ((pep_tensor,
-                 hla_tensor,
-                 pep_mask,
-                 hla_mask),
-                tgt,
-                i)
+        concat_processed, padding_mask = self.encoder.transform_peptide_hla_concat(pep, hla, encode_choice="esm")
+        return (concat_processed, padding_mask, tgt, i)
+
+        
+        # pep_tensor, pep_mask = self.encoder.encode_peptide_notflat_with_BOS(pep)
+        # hla_tensor, hla_mask = self.encoder.encode_hla_fullseq_notflat(hla)
+        # return ((pep_tensor,
+        #          hla_tensor,
+        #          pep_mask,
+        #          hla_mask),
+        #         tgt,
+        #         i)
         
         # # # For Transformer V8 embed
         # pep, hla, tgt = self.pep_at(i), self.allele_at(i), self.tgt_at(i)

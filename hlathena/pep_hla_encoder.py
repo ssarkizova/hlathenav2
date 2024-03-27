@@ -1,5 +1,4 @@
 """ Featurized peptide hLA dataset """
-
 import os
 from typing import List, Tuple
 import numpy as np
@@ -10,6 +9,7 @@ import torch.nn.functional as F
 from torch import Tensor
 import importlib_resources
 import re
+import esm
 
 from hlathena.amino_acid_feature_map import AminoAcidFeatureMap
 from hlathena.definitions import AMINO_ACIDS, AMINO_ACIDS_EXT, LOCI, AA_MAPPING, BOS_TOKEN, BOS_DICT
@@ -49,6 +49,16 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
         pep_len_dim = len(self.pep_lens) if len(self.pep_lens) > 1 else 0
         self.feature_dimensions = pep_dim + hla_dim + pep_len_dim
 
+        self.esm_model, self.esm_alphabet = esm.pretrained.esm2_t33_650M_UR50D()
+        self.esm_batch_converter = self.esm_alphabet.get_batch_converter()
+
+    def get_hla_seq(self, hla_name):
+        if 'HLA-' in hla_name: # cleaning name for testing file
+            hla_name = re.sub(r'[*:]', '', hla_name.split('HLA-')[1])
+        # loc_enc = self.encode_loci(self.get_loci(hla)) # encoding allele loci
+        # hla_seq = [list(self.hla_seqs.at[hla, 'seq'])]
+        return self.hla_seqs.at[hla_name, 'seq']
+    
     def encode_pep_len(self, pep: str):
         return F.one_hot(torch.tensor(len(pep)) % min(self.pep_lens), num_classes=len(self.pep_lens))
 
@@ -127,6 +137,21 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
         encoder.fit([[loci]])
         return torch.as_tensor(encoder.transform([[loci]]).toarray()[0]).float()
 
+    def add_padding(self, sequence, max_len, padding_token = "-"):
+        """
+        Pads the amino acid sequence to a maximum length by adding the necessary number of padding tokens ("-") after the fourth amino acid
+    
+        Parameters: 
+        - sequence (str): input amino acid sequence for peptide
+        - max_len (int): maximum length you want to pad the sequence to 
+        - padding_token (str): token used for padding
+        
+        Returns: 
+        - str: padded amino acid sequence
+        """
+        difference = max_len - len(sequence)
+        return sequence[:4] + padding_token*difference + sequence[4:]
+
     def add_padding_and_BOS(self, seq, max_len, padding_token="-"):
         """
         Pads the amino acid sequence to a maximum length by adding the necessary number of padding tokens ("-") after the fourth amino acid
@@ -189,3 +214,61 @@ class PepHLAEncoder:  # TODO: add support for no hla encoding, if none, just ret
         if len(self.pep_lens) > 1:
             encoding = torch.cat((encoding, self.encode_pep_len(pep)))
         return encoding
+
+
+    def transform_peptide_hla_concat(
+        self,
+        peptide_seq, 
+        hla, 
+        esm_model = None, 
+        esm_batch_converter = None, 
+        esm_alphabet = None, 
+        encode_choice = "embed"
+    ):
+
+        if esm_model is None:
+            esm_model = self.esm_model
+        if esm_batch_converter is None:
+            esm_batch_converter = self.esm_batch_converter
+        if esm_alphabet is None:
+            esm_alphabet = self.esm_alphabet
+        
+        max_len = max(self.pep_lens)
+        hla_seq = self.get_hla_seq(hla)
+        padded_seq = self.add_padding(peptide_seq, max_len, "-")
+        concat_seq = padded_seq + hla_seq
+        
+        #TODO: for all of these, check that it should be unsqueeze(1)
+        #converted this code to be for just one peptide since that is what the dataloader needs
+        if encode_choice == "embed":
+            concat_processed = torch.tensor([amino_acid_mapping[aa] for aa in concat_seq])
+            padding_mask = (concat_processed == amino_acid_mapping["-"]).unsqueeze(1)
+            
+        #TODO: check if this is correctly implemented for a one peptide at a time basis 
+        elif encode_choice == "esm":
+            padded_seq = self.add_padding(peptide_seq, max_len, "<pad>")
+            concat_seq = padded_seq + hla_seq
+            concat_input = [("Concat_Input", concat_seq)]
+            concat_batch_labels, concat_batch_strs, concat_batch_tokens = esm_batch_converter(concat_input)
+            #concat_batch_lens = (concat_batch_tokens != esm_alphabet.padding_idx).sum(1) #only need this if you want to later use the means instead of the token representations for each amino acid
+            
+            # Extract per-residue representations (on CPU)
+            with torch.no_grad():
+                concat_results = esm_model(concat_batch_tokens, repr_layers=[33], return_contacts=True)
+            concat_processed = concat_results["representations"][33]
+            #this is the padding mask for the transformer (padding for the esm model has already been incorporated into the <pad> token for esm_model to deal with - double check! TODO)
+            padding_mask = (concat_batch_tokens == esm_alphabet.padding_idx).unsqueeze(1) #QUESTION/TODO: Do I need to unsqueeze this? this is currently [batch_size, seq_length]
+    
+        elif encode_choice == "one_hot":
+            concat_processed = torch.tensor([one_hot_dict[aa] for aa in concat_seq])
+            padding_bool = [aa == "-" for aa in concat_seq]
+            padding_mask = torch.tensor(padding_bool).unsqueeze(1)
+    
+        elif encode_choice == "pc":
+            concat_processed = torch.tensor([pc_dict[aa] for aa in concat_seq])
+            padding_bool = [aa == "-" for aa in concat_seq]
+            padding_mask = torch.tensor(padding_bool).unsqueeze(1)
+        else:
+            raise ValueError(f"Unsupported encoding choice: {encode_choice}. Must be 'one_hot', 'esm', embed', or 'pc'")
+        
+        return concat_processed, padding_mask

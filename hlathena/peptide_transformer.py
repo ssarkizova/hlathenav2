@@ -163,7 +163,7 @@ class Embeddings(nn.Module):
 
     def forward(self, x):
         return self.lut(x) * math.sqrt(self.d_model)
-
+        
 
 class PositionalEncoding(nn.Module):
     "Implement the PE function."
